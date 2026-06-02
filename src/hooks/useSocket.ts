@@ -1,6 +1,6 @@
 // ============================================================================
-// useSocket — Singleton Socket.IO client hook
-// Provides reactive connection state and typed event listeners
+// useSocket — Lazy Socket.IO client hook
+// Only connects when subscription is requested, not on import
 // ============================================================================
 
 "use client";
@@ -12,7 +12,7 @@ import type {
   ServerToClientEvents,
   ClientToServerEvents,
 } from "@/lib/socket-types";
-import { SOCKET_EVENTS, ROLE_ROOMS } from "@/lib/socket-types";
+import { SOCKET_EVENTS } from "@/lib/socket-types";
 import type { UserRole } from "@/types";
 
 // ── Socket singleton (survives React re-renders) ──────────────────────────
@@ -31,43 +31,30 @@ function getOrCreateSocket(): Socket<
   if (!globalSocket) {
     globalSocket = io({
       path: "/api/socketio",
-      transports: ["websocket", "polling"],
+      transports: ["websocket"], // Prefer WebSocket, polling as fallback removed to reduce overhead
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 15000,
-      timeout: 20000,
+      reconnectionAttempts: 5, // Reduced from 10
+      reconnectionDelay: 3000, // Increased from 2000ms to reduce rapid reconnection spam
+      reconnectionDelayMax: 10000, // Reduced from 15000ms
+      timeout: 10000, // Reduced from 20000ms
       forceNew: false,
     });
 
     globalSocket.on("connect", () => {
-      console.log("[SOCKET] Connected:", globalSocket?.id);
-      connectErrorLogged = false; // Reset error flag on successful connect
-    });
-
-    globalSocket.on("disconnect", (reason) => {
-      // Only log unexpected disconnects
-      if (reason !== "io client disconnect") {
-        console.log("[SOCKET] Disconnected:", reason);
-      }
-    });
-
-    globalSocket.on("connect_error", (error) => {
-      // Only log once per connection attempt cycle to prevent spam
-      if (!connectErrorLogged) {
-        console.warn("[SOCKET] Connection error:", error.message);
-        connectErrorLogged = true;
-      }
-    });
-
-    globalSocket.io.on("reconnect_attempt", (attempt) => {
-      console.log("[SOCKET] Reconnect attempt:", attempt);
       connectErrorLogged = false;
     });
 
-    globalSocket.io.on("reconnect_failed", () => {
-      console.warn("[SOCKET] All reconnect attempts failed");
+    globalSocket.on("disconnect", (reason) => {
+      if (reason !== "io client disconnect") {
+        // Already handled silently
+      }
+    });
+
+    globalSocket.on("connect_error", () => {
+      if (!connectErrorLogged) {
+        connectErrorLogged = true;
+      }
     });
   }
 
@@ -108,7 +95,6 @@ export function useSocket() {
       joinedRoomsRef.current.add(role);
     }
 
-    // On role change, leave old room
     return () => {
       if (role) {
         socket.emit(SOCKET_EVENTS.LEAVE_ROLE_ROOM, role);

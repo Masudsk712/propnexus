@@ -1,17 +1,20 @@
 // ============================================================================
 // Next.js Middleware — Route protection + Security Headers
+// Optimized: only calls auth() for protected/auth routes
 // ============================================================================
 
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { v4 as uuidv4 } from "uuid";
 
 // Paths that require authentication
 const protectedPaths = ["/dashboard", "/properties", "/tenants", "/maintenance", "/amenities", "/bookings", "/settings"];
 
 // Public-only paths (redirect to dashboard if already logged in)
 const authPaths = ["/login", "/register", "/forgot-password", "/reset-password"];
+
+// Allow static assets and public paths to pass through without auth check
+const PUBLIC_PREFIXES = ["/_next", "/api", "/favicon.ico", "/images", "/manifest.json", "/og-image.png", "/apple-touch-icon.png", "/favicon-16x16.png"];
 
 // Role-based dashboard redirects
 const ROLE_DASHBOARD_MAP: Record<string, string> = {
@@ -37,7 +40,7 @@ const CSP_DIRECTIVES = [
   IS_PRODUCTION ? "upgrade-insecure-requests" : "",
 ].filter(Boolean).join("; ");
 
-// ── Security Headers ───────────────────────────────────────────────────────
+// ── Security Headers (applied to all responses, cheap operation) ───────────
 function applySecurityHeaders(response: NextResponse): void {
   const headers = response.headers;
 
@@ -55,11 +58,31 @@ function applySecurityHeaders(response: NextResponse): void {
   headers.set("Cross-Origin-Resource-Policy", "same-origin");
 }
 
+// Helper: does the path need auth handling?
+function needsAuthCheck(pathname: string): boolean {
+  // Skip public/static paths entirely
+  if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
+    return false;
+  }
+
+  // Check if it's a protected route or auth route
+  const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
+  const isAuth = authPaths.some((p) => pathname.startsWith(p));
+
+  return isProtected || isAuth;
+}
+
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const requestId = uuidv4();
-  const startTime = Date.now();
 
+  // Fast-path: skip auth() entirely for public/static routes
+  if (!needsAuthCheck(pathname)) {
+    const response = NextResponse.next();
+    applySecurityHeaders(response);
+    return response;
+  }
+
+  // Only call auth() for protected/auth routes
   const session = await auth();
   const isLoggedIn = !!session?.user;
   const userRole = (session?.user as any)?.role as string | undefined;
@@ -98,14 +121,8 @@ export default async function middleware(request: NextRequest) {
     response = NextResponse.next();
   }
 
-  // Apply security headers to all responses
+  // Apply security headers
   applySecurityHeaders(response);
-
-  // Add request ID header for tracing
-  response.headers.set("X-Request-ID", requestId);
-
-  // Add server timing header (non-sensitive)
-  response.headers.set("Server-Timing", `total;dur=${Date.now() - startTime}`);
 
   return response;
 }

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:prod": "NODE_ENV=production next build",
+    "build:prod": "set NODE_ENV=production && next build",
+    "db:init": "npx tsx scripts/init-replica-set.ts",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "npx tsc --noEmit",
@@ -38,6 +39,7 @@
     "dotenv": "^17.4.2",
     "framer-motion": "^12.26.1",
     "lucide-react": "^0.553.0",
+    "mongodb": "^7.2.0",
     "next": "^15.5.7",
     "next-auth": "^5.0.0-beta.31",
     "next-themes": "^0.4.6",

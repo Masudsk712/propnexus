@@ -87,40 +87,6 @@ function ChartSkeleton() {
   return <Skeleton className="h-[300px] w-full rounded-xl" />;
 }
 
-function DashboardSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-72 mt-2" />
-        </div>
-        <Skeleton className="h-10 w-32" />
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="rounded-xl border border-border bg-card p-6">
-            <div className="flex justify-between">
-              <Skeleton className="h-12 w-12 rounded-xl" />
-              <Skeleton className="h-6 w-16 rounded-full" />
-            </div>
-            <Skeleton className="h-4 w-24 mt-4" />
-            <Skeleton className="h-8 w-32 mt-2" />
-          </div>
-        ))}
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Skeleton className="h-96 rounded-xl" />
-        <Skeleton className="h-96 rounded-xl" />
-      </div>
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Skeleton className="h-96 rounded-xl lg:col-span-2" />
-        <Skeleton className="h-96 rounded-xl" />
-      </div>
-    </div>
-  );
-}
-
 // ── Stat Card (memoized) ──────────────────────────────────────────────────
 const StatCard = memo(function StatCard({
   title,
@@ -206,52 +172,41 @@ const QuickActionCard = memo(function QuickActionCard({
   );
 });
 
+// ── Mock Data (outside component to avoid re-creation on re-renders) ──────
+const mockRevenue = [
+  { month: "Jan", revenue: 42000 }, { month: "Feb", revenue: 45000 },
+  { month: "Mar", revenue: 48000 }, { month: "Apr", revenue: 51000 },
+  { month: "May", revenue: 54000 }, { month: "Jun", revenue: 52000 },
+  { month: "Jul", revenue: 58000 }, { month: "Aug", revenue: 61000 },
+  { month: "Sep", revenue: 59000 }, { month: "Oct", revenue: 63000 },
+  { month: "Nov", revenue: 67000 }, { month: "Dec", revenue: 72000 },
+];
+
+const mockOccupancy = [
+  { month: "Jan", rate: 85 }, { month: "Feb", rate: 86 },
+  { month: "Mar", rate: 87 }, { month: "Apr", rate: 88 },
+  { month: "May", rate: 89 }, { month: "Jun", rate: 90 },
+  { month: "Jul", rate: 91 }, { month: "Aug", rate: 90 },
+  { month: "Sep", rate: 89 }, { month: "Oct", rate: 88 },
+  { month: "Nov", rate: 87 }, { month: "Dec", rate: 88 },
+];
+
+const mockRevenueByProperty = [
+  { property: "Skyline Towers", revenue: 72000 },
+  { property: "Harbor View", revenue: 58000 },
+  { property: "Oakwood", revenue: 45000 },
+  { property: "Sunset Villas", revenue: 38000 },
+  { property: "Park Avenue", revenue: 52000 },
+];
+
+const mockMaintenance = [
+  { category: "Plumbing", count: 12 }, { category: "Electrical", count: 8 },
+  { category: "HVAC", count: 15 }, { category: "Structural", count: 5 },
+  { category: "Appliance", count: 10 }, { category: "Other", count: 6 },
+];
+
 // ── Main Dashboard Page ───────────────────────────────────────────────────
 export default function DashboardPage() {
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
-
-  // Inline mock data (avoids importing 292-line mock.ts into every bundle)
-  const mockRevenue = [
-    { month: "Jan", revenue: 42000 }, { month: "Feb", revenue: 45000 },
-    { month: "Mar", revenue: 48000 }, { month: "Apr", revenue: 51000 },
-    { month: "May", revenue: 54000 }, { month: "Jun", revenue: 52000 },
-    { month: "Jul", revenue: 58000 }, { month: "Aug", revenue: 61000 },
-    { month: "Sep", revenue: 59000 }, { month: "Oct", revenue: 63000 },
-    { month: "Nov", revenue: 67000 }, { month: "Dec", revenue: 72000 },
-  ];
-
-  const mockOccupancy = [
-    { month: "Jan", rate: 85 }, { month: "Feb", rate: 86 },
-    { month: "Mar", rate: 87 }, { month: "Apr", rate: 88 },
-    { month: "May", rate: 89 }, { month: "Jun", rate: 90 },
-    { month: "Jul", rate: 91 }, { month: "Aug", rate: 90 },
-    { month: "Sep", rate: 89 }, { month: "Oct", rate: 88 },
-    { month: "Nov", rate: 87 }, { month: "Dec", rate: 88 },
-  ];
-
-  const mockRevenueByProperty = [
-    { property: "Skyline Towers", revenue: 72000 },
-    { property: "Harbor View", revenue: 58000 },
-    { property: "Oakwood", revenue: 45000 },
-    { property: "Sunset Villas", revenue: 38000 },
-    { property: "Park Avenue", revenue: 52000 },
-  ];
-
-  const mockMaintenance = [
-    { category: "Plumbing", count: 12 }, { category: "Electrical", count: 8 },
-    { category: "HVAC", count: 15 }, { category: "Structural", count: 5 },
-    { category: "Appliance", count: 10 }, { category: "Other", count: 6 },
-  ];
-
   return (
     <motion.div
       initial={{ opacity: 0 }}

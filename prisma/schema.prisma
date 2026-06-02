@@ -39,7 +39,6 @@ model User {
   uploadedFiles       File[]                 @relation("UploadedByUser")
 
   @@index([role])
-  @@index([email])
   @@map("users")
 }
 

@@ -52,11 +52,22 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
 
-  // ── Experimental ────────────────────────────────────────────────────────
+  // ── Optimize heavy package imports (Next.js 15 native tree-shaking) ────
   experimental: {
-    optimizeCss: true,
+    // CSS optimization only in production (speeds up dev HMR)
+    optimizeCss: process.env.NODE_ENV === "production",
     scrollRestoration: true,
+    // Optimize barrel-file imports from these heavy packages
+    optimizePackageImports: [
+      "lucide-react",
+      "framer-motion",
+      "date-fns",
+      "@tanstack/react-query",
+    ],
   },
+
+  // ── Keep socket.io and Prisma server-side only ──────────────────────────
+  serverExternalPackages: ["socket.io", "socket.io-client"],
 
   // ── Webpack ─────────────────────────────────────────────────────────────
   webpack: (config, { dev, isServer }) => {
@@ -66,6 +77,8 @@ const nextConfig: NextConfig = {
         ...config.optimization,
         splitChunks: {
           chunks: "all",
+          maxInitialRequests: 25,
+          minSize: 20000,
           cacheGroups: {
             // Separate heavy chart library
             charts: {
@@ -81,6 +94,15 @@ const nextConfig: NextConfig = {
               priority: 10,
               reuseExistingChunk: true,
             },
+            // Separate socket.io
+            socket: {
+              test: /[\\/]node_modules[\\/](socket\.io|engine\.io)[\\/]/,
+              name: "socket-io",
+              priority: 10,
+              reuseExistingChunk: true,
+              // Socket.IO is never used on the server bundle
+              enforce: !isServer,
+            },
             // Vendor commons
             vendors: {
               test: /[\\/]node_modules[\\/]/,
@@ -93,7 +115,7 @@ const nextConfig: NextConfig = {
       };
     }
 
-    // Exclude mongodb driver from client bundle (used only in server-side Prisma)
+    // Exclude Node.js built-ins from client bundle
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -105,21 +127,12 @@ const nextConfig: NextConfig = {
       };
     }
 
+    // Disable Webpack cache in development to reduce disk I/O
+    if (dev) {
+      config.cache = false;
+    }
+
     return config;
-  },
-
-  // ── Transpile Packed Packages (for monorepo / ESM compat) ───────────────
-  transpilePackages: [
-    "@tanstack/react-query",
-    "next-auth",
-    "lucide-react",
-  ],
-
-  // ── Logging ─────────────────────────────────────────────────────────────
-  logging: {
-    fetches: {
-      fullUrl: false,
-    },
   },
 
   // ── Output ──────────────────────────────────────────────────────────────
@@ -127,7 +140,13 @@ const nextConfig: NextConfig = {
 
   // ── Production Source Maps ──────────────────────────────────────────────
   productionBrowserSourceMaps: false,
-};
 
+  // ── Logging ─────────────────────────────────────────────────────────────
+  logging: {
+    fetches: {
+      fullUrl: false,
+    },
+  },
+};
 
 export default nextConfig;

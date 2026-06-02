@@ -14,12 +14,14 @@ function createPrismaClient(): PrismaClient {
 
   const client = new PrismaClient({
     log: isDev ? ["warn", "error"] : ["error"],
-    // Connection pooling for MongoDB
     datasources: {
       db: {
         url: process.env.DATABASE_URL,
       },
     },
+    // Connection pool configuration
+    // Prisma uses @prisma/client connection pool defaults which optimize for serverless
+    // MongoDB connection pool is managed by the driver internally
   });
 
   // Graceful shutdown hooks (Node.js only — skip in Edge Runtime)
