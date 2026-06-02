@@ -1,0 +1,92 @@
+"use client";
+
+import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ReactNode } from "react";
+import { Clock, CheckCircle, AlertTriangle, Info, XCircle } from "lucide-react";
+
+type TimelineVariant = "success" | "warning" | "destructive" | "info" | "neutral";
+
+interface TimelineItem {
+  id: string;
+  title: string;
+  description?: string;
+  timestamp: string;
+  variant?: TimelineVariant;
+  icon?: ReactNode;
+}
+
+interface ActivityTimelineProps {
+  items: TimelineItem[];
+  isLoading?: boolean;
+  className?: string;
+  limit?: number;
+}
+
+const variantStyles: Record<TimelineVariant, { bg: string; icon: ReactNode }> = {
+  success: { bg: "bg-emerald-500/10 text-emerald-500", icon: <CheckCircle className="h-3.5 w-3.5" /> },
+  warning: { bg: "bg-amber-500/10 text-amber-500", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+  destructive: { bg: "bg-red-500/10 text-red-500", icon: <XCircle className="h-3.5 w-3.5" /> },
+  info: { bg: "bg-blue-500/10 text-blue-500", icon: <Info className="h-3.5 w-3.5" /> },
+  neutral: { bg: "bg-muted text-muted-foreground", icon: <Clock className="h-3.5 w-3.5" /> },
+};
+
+export function ActivityTimeline({ items, isLoading, className, limit }: ActivityTimelineProps) {
+  const displayItems = limit ? items.slice(0, limit) : items;
+
+  if (isLoading) {
+    return (
+      <div className={cn("space-y-0", className)}>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="flex gap-4 py-3">
+            <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
+            <div className="flex-1 space-y-1.5"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/2" /></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (displayItems.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+        <Clock className="h-10 w-10 mb-3 opacity-20" />
+        <p className="text-sm font-medium">No activity yet</p>
+        <p className="text-xs mt-1">Recent events will appear here</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("relative", className)}>
+      <div className="absolute left-[15px] top-2 bottom-2 w-px bg-border" />
+      <div className="space-y-1">
+        {displayItems.map((item, index) => {
+          const v = item.variant ?? "neutral";
+          const config = variantStyles[v];
+          return (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.06, duration: 0.25 }}
+              className="relative flex items-start gap-4 py-2.5 pl-1"
+            >
+              <div className={cn("relative z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full", config.bg)}>
+                {item.icon ?? config.icon}
+              </div>
+              <div className="flex-1 min-w-0 pt-0.5">
+                <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>}
+                <p className="text-[11px] text-muted-foreground/70 mt-1">{item.timestamp}</p>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export type { ActivityTimelineProps, TimelineItem, TimelineVariant };

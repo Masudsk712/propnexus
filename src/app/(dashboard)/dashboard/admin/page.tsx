@@ -6,13 +6,17 @@
 
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
-import { Shield, Users, Building2, Wrench, LogOut } from "lucide-react";
+import { Shield, Users, Building2, Wrench, TrendingUp, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { dashboardStats, activities } from "@/data/mock";
-import { formatCurrency, formatNumber, formatTimeAgo } from "@/lib/utils";
+import { KPICard } from "@/components/ui/kpi-card";
+import { DashboardWidget } from "@/components/shared/dashboard-widget";
+import { DashboardChartCard } from "@/components/shared/dashboard-chart-card";
+import { ActivityTimeline } from "@/components/shared/activity-timeline";
+import { QuickActionsPanel } from "@/components/shared/quick-actions-panel";
+import { dashboardStats } from "@/data/mock";
 import {
   AreaChart,
   Area,
@@ -23,6 +27,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import { useState, useEffect } from "react";
 
@@ -36,80 +43,41 @@ export default function AdminDashboardPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
-
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-6"
-    >
-      {/* Admin Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-xl border border-primary/20 bg-primary/5"
+    <div className="space-y-6 sm:space-y-8">
+      <DashboardWidget
+        title="Admin Dashboard"
+        description={`Welcome, ${session?.user?.name || "Administrator"} — Full system access`}
+        actions={
+          <div className="flex gap-2">
+            <Badge variant="default" className="bg-primary/20 text-primary border-primary/30">Admin</Badge>
+            <Button variant="outline" size="sm" onClick={logout}><LogOut className="mr-2 h-4 w-4" />Sign Out</Button>
+          </div>
+        }
+        isLoading={loading} delay={0}
       >
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-primary/10">
-            <Shield className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">
-              Admin Dashboard
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Welcome, {session?.user?.name || "Administrator"} — Full system access
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Badge variant="default" className="bg-primary/20 text-primary border-primary/30">
-            Admin
-          </Badge>
-          <Button variant="outline" size="sm" onClick={logout}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
-          </Button>
-        </div>
-      </motion.div>
-
-      {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { title: "Total Revenue", value: dashboardStats.totalRevenue, icon: "💰", format: formatCurrency },
-          { title: "Properties", value: dashboardStats.totalProperties, icon: "🏢", format: formatNumber },
-          { title: "Occupancy", value: dashboardStats.occupancyRate, icon: "📊", format: (v: number) => `${v}%` },
-          { title: "Maintenance", value: dashboardStats.activeMaintenanceRequests, icon: "🔧", format: formatNumber },
-        ].map((stat, i) => (
-          <motion.div
-            key={stat.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="card-lift rounded-xl border border-border bg-card p-6"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-2xl">{stat.icon}</span>
+        {!loading && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+            className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-primary/5 via-primary/3 to-transparent border border-primary/10">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10"><Shield className="h-5 w-5 text-primary" /></div>
+            <div>
+              <p className="text-sm font-semibold">System Health: Operational</p>
+              <p className="text-xs text-muted-foreground">6 properties · 495 units · 100% uptime · API latency 42ms</p>
             </div>
-            <p className="text-sm text-muted-foreground mt-4">{stat.title}</p>
-            <p className="text-2xl font-bold mt-1">{stat.format(stat.value)}</p>
+            <span className="ml-auto text-xs font-semibold text-emerald-500 flex items-center gap-1"><TrendingUp className="h-3 w-3" />All systems go</span>
           </motion.div>
-        ))}
+        )}
+      </DashboardWidget>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KPICard title="Total Revenue" value={dashboardStats.totalRevenue} prefix="$" decimals={0} icon={TrendingUp} change={12.5} changeLabel="vs last year" variant="revenue" sparklineData={[980, 1020, 1100, 1180, 1275]} isLoading={loading} />
+        <KPICard title="Properties" value={dashboardStats.totalProperties} icon={Building2} variant="default" isLoading={loading} />
+        <KPICard title="Occupancy" value={dashboardStats.occupancyRate} suffix="%" icon={TrendingUp} change={2.1} changeLabel="vs last month" variant="occupancy" sparklineData={[85, 86, 87, 88, 88]} isLoading={loading} />
+        <KPICard title="Active Maintenance" value={dashboardStats.activeMaintenanceRequests} icon={Wrench} change={-15.3} changeLabel="vs last month" variant="maintenance" isLoading={loading} />
       </div>
 
-      {/* Charts Row */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="rounded-xl border border-border bg-card p-6"
-        >
-          <h3 className="font-semibold text-lg mb-6">Revenue Overview</h3>
+        <DashboardChartCard title="Revenue Overview" subtitle="Monthly revenue trend" badge={<Badge variant="success" className="flex items-center gap-1"><TrendingUp className="h-3 w-3" />+12.5%</Badge>} isLoading={loading} delay={0.1} skeletonHeight={300}>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={dashboardStats.monthlyRevenue}>
               <defs>
@@ -125,15 +93,22 @@ export default function AdminDashboardPage() {
               <Area type="monotone" dataKey="revenue" stroke="var(--primary)" fill="url(#adminRevenue)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
-        </motion.div>
+        </DashboardChartCard>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="rounded-xl border border-border bg-card p-6"
-        >
-          <h3 className="font-semibold text-lg mb-6">Revenue by Property</h3>
+        <DashboardChartCard title="Maintenance Categories" subtitle="Distribution by type" badge={<Badge variant="warning">4 active</Badge>} isLoading={loading} delay={0.15} skeletonHeight={300}>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie data={dashboardStats.maintenanceByCategory} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="count">
+                {dashboardStats.maintenanceByCategory.map((_, i) => <Cell key={i} fill={["#6366f1","#8b5cf6","#a855f7","#d946ef","#ec4899","#f43f5e"][i % 6]} stroke="var(--card)" strokeWidth={2} />)}
+              </Pie>
+              <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: "0.75rem" }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </DashboardChartCard>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <DashboardChartCard title="Revenue by Property" subtitle="Breakdown across portfolio" isLoading={loading} delay={0.2} skeletonHeight={300}>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={dashboardStats.revenueByProperty} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -143,76 +118,45 @@ export default function AdminDashboardPage() {
               <Bar dataKey="revenue" radius={[0, 6, 6, 0]} fill="var(--primary)" />
             </BarChart>
           </ResponsiveContainer>
-        </motion.div>
+        </DashboardChartCard>
+
+        <DashboardWidget title="Recent Activity" description="System-wide events" isLoading={loading} delay={0.25}>
+          <ActivityTimeline
+            items={[
+              { id: "a1", title: "Payment of $2,800 received", description: "Skyline Towers Unit 12A", timestamp: "2 hours ago", variant: "success" },
+              { id: "a2", title: "Elevator #3 repair started", description: "Metro Lofts — emergency maintenance", timestamp: "3 hours ago", variant: "destructive" },
+              { id: "a3", title: "5 leases expiring within 30 days", description: "Greenwood Gardens — requires attention", timestamp: "1 day ago", variant: "warning" },
+              { id: "a4", title: "New property listed on marketplace", description: "Palm Springs Villas", timestamp: "3 days ago", variant: "info" },
+            ]}
+            limit={4}
+          />
+        </DashboardWidget>
       </div>
 
-      {/* Admin Quick Actions */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-        className="grid gap-4 sm:grid-cols-3"
-      >
-        {[
-          { title: "Manage Users", icon: Users, color: "bg-blue-500/10 text-blue-500" },
-          { title: "All Properties", icon: Building2, color: "bg-emerald-500/10 text-emerald-500" },
-          { title: "Maintenance", icon: Wrench, color: "bg-orange-500/10 text-orange-500" },
-        ].map((action) => (
-          <motion.div
-            key={action.title}
-            whileHover={{ scale: 1.02 }}
-            className="card-lift flex items-center gap-4 rounded-xl border border-border bg-card p-5 cursor-pointer"
-          >
-            <div className={`rounded-xl p-3 ${action.color}`}>
-              <action.icon className="h-5 w-5" />
-            </div>
-            <p className="font-medium text-sm">{action.title}</p>
-          </motion.div>
-        ))}
-      </motion.div>
-
-      {/* Activity Feed */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.7 }}
-        className="rounded-xl border border-border bg-card p-6"
-      >
-        <h3 className="font-semibold text-lg mb-4">Recent Activity</h3>
-        <div className="space-y-4">
-          {activities.slice(0, 5).map((activity) => (
-            <div key={activity.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                {activity.userName.charAt(0)}
-              </div>
-              <div className="flex-1">
-                <p className="text-sm">
-                  <span className="font-medium">{activity.userName}</span>{" "}
-                  <span className="text-muted-foreground">{activity.action}</span>
-                </p>
-                <p className="text-xs text-muted-foreground">{formatTimeAgo(activity.createdAt)}</p>
-              </div>
-              <Badge variant="secondary" className="text-xs">{activity.type}</Badge>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-    </motion.div>
+      <QuickActionsPanel
+        actions={[
+          { id: "manage-users", title: "Manage Users", description: "View and manage system users", icon: Users, href: "/settings" },
+          { id: "all-properties", title: "All Properties", description: "View full property portfolio", icon: Building2, href: "/properties" },
+          { id: "maintenance-overview", title: "Maintenance", description: "Review all maintenance requests", icon: Wrench, href: "/maintenance" },
+        ]}
+        isLoading={loading} delay={0.3}
+      />
+    </div>
   );
 }
 
 function DashboardSkeleton() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-24 w-full rounded-xl" />
+      <Skeleton className="h-28 w-full rounded-2xl" />
       <div className="grid gap-4 sm:grid-cols-4">
-        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
+        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-36 rounded-2xl" />)}
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
-        <Skeleton className="h-96 rounded-xl" />
-        <Skeleton className="h-96 rounded-xl" />
+        <Skeleton className="h-80 rounded-2xl" />
+        <Skeleton className="h-80 rounded-2xl" />
       </div>
-      <Skeleton className="h-72 rounded-xl" />
+      <Skeleton className="h-72 rounded-2xl" />
     </div>
   );
 }

@@ -70,8 +70,10 @@ export default function DashboardLayout({
         className="flex-1 w-full min-w-0"
       >
         <Navbar />
-        <div className="p-4 sm:p-6 lg:p-6 xl:p-8 w-full max-w-full overflow-x-hidden">
-          {children}
+        <div className="content-area w-full max-w-full overflow-x-hidden">
+          <div className="dashboard-container">
+            {children}
+          </div>
         </div>
       </motion.main>
     </div>
