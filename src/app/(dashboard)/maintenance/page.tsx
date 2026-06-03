@@ -1,17 +1,16 @@
 "use client";
 
-import { maintenanceRequests } from "@/data/mock";
+import { useMaintenanceRequests } from "@/hooks/useApi";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { motion } from "framer-motion";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   Wrench,
   Plus,
   AlertCircle,
   Clock,
-  DollarSign,
   ChevronRight,
   Building2,
 } from "lucide-react";
@@ -139,13 +138,11 @@ const columns: Column<MaintenanceRequest>[] = [
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function MaintenancePage() {
-  const [loading, setLoading] = useState(true);
+  const { data: maintenanceRequests, isLoading } = useMaintenanceRequests();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
-  useEffect(() => {
-    setTimeout(() => setLoading(false), 600);
-  }, []);
+  const maintenanceList = Array.isArray(maintenanceRequests) ? maintenanceRequests : [];
 
   const filterBtns = useMemo(
     () => ["all", "open", "in-progress", "resolved", "closed"],
@@ -193,9 +190,9 @@ export default function MaintenancePage() {
       {/* Data Table */}
       <DataTable
         columns={columns}
-        data={maintenanceRequests}
+        data={maintenanceList}
         keyExtractor={(r) => r.id}
-        isLoading={loading}
+        isLoading={isLoading}
         emptyState={{
           icon: Wrench,
           title: "No maintenance requests",

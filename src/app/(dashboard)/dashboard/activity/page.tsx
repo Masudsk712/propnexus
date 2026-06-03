@@ -1,11 +1,11 @@
 "use client";
 
-import { activities } from "@/data/mock";
+import { useDashboard } from "@/hooks/useApi";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
-import { Activity, Search, Filter } from "lucide-react";
+import { useState } from "react";
+import { Activity } from "lucide-react";
 import { formatTimeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -14,14 +14,13 @@ const typeColors: Record<string, "success" | "warning" | "destructive" | "info" 
 };
 
 export default function ActivityPage() {
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useDashboard();
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  useEffect(() => { setTimeout(() => setLoading(false), 600); }, []);
-
+  const activities = data?.recentActivity ?? [];
   const filtered = typeFilter === "all" ? activities : activities.filter((a) => a.type === typeFilter);
 
-  if (loading) {
+  if (isLoading) {
     return <div className="space-y-6"><Skeleton className="h-10 w-48" /><div className="space-y-3">{[1,2,3,4,5,6,7,8].map((i) => (<Skeleton key={i} className="h-16 rounded-xl" />))}</div></div>;
   }
 
@@ -39,26 +38,33 @@ export default function ActivityPage() {
       </div>
 
       <div className="space-y-3">
-        {filtered.map((act, index) => (
-          <motion.div
-            key={act.id}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.05 }}
-            className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/30 transition-all"
-          >
-            <img src={act.userAvatar ?? undefined} alt={act.userName} className="h-10 w-10 rounded-full object-cover ring-2 ring-border" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm">
-                <span className="font-medium">{act.userName}</span>{" "}
-                <span className="text-muted-foreground">{act.action}</span>{" "}
-                <span className="font-medium">{act.target}</span>
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">{formatTimeAgo(act.createdAt)}</p>
-            </div>
-            <Badge variant={typeColors[act.type]} className="text-xs capitalize">{act.type}</Badge>
-          </motion.div>
-        ))}
+        {filtered.length === 0 ? (
+          <div className="rounded-xl border border-border bg-card p-8 text-center">
+            <Activity className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No activity found</p>
+          </div>
+        ) : (
+          filtered.map((act, index) => (
+            <motion.div
+              key={act.id}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.05 }}
+              className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/30 transition-all"
+            >
+              <img src={act.userAvatar ?? undefined} alt={act.userName} className="h-10 w-10 rounded-full object-cover ring-2 ring-border" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm">
+                  <span className="font-medium">{act.userName}</span>{" "}
+                  <span className="text-muted-foreground">{act.action}</span>{" "}
+                  <span className="font-medium">{act.target}</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">{formatTimeAgo(act.createdAt)}</p>
+              </div>
+              <Badge variant={typeColors[act.type]} className="text-xs capitalize">{act.type}</Badge>
+            </motion.div>
+          ))
+        )}
       </div>
     </motion.div>
   );

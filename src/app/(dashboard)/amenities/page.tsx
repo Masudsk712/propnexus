@@ -1,82 +1,233 @@
 "use client";
 
-import { amenities } from "@/data/mock";
-import { Badge } from "@/components/ui/badge";
+import { useAmenities } from "@/hooks/useApi";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { DataTable, type Column } from "@/components/ui/data-table";
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
-import { Sparkles, Clock, Users, MapPin, Search, CalendarDays, ChevronRight } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
+import {
+  Sparkles,
+  Clock,
+  Users,
+  CalendarDays,
+  ChevronRight,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
+import type { Amenity } from "@/types";
 
-const typeIcons: Record<string, React.ElementType> = {
-  gym: Sparkles, pool: Sparkles, clubhouse: Sparkles, bbq: Sparkles,
-  playground: Sparkles, parking: Sparkles, rooftop: Sparkles, lounge: Sparkles, other: Sparkles,
+// ── Status colors ─────────────────────────────────────────────────────────────
+const statusColors: Record<string, BadgeProps["variant"]> = {
+  available: "success",
+  maintenance: "warning",
+  closed: "destructive",
 };
 
+// ── Column definitions ────────────────────────────────────────────────────────
+const columns: Column<Amenity>[] = [
+  {
+    key: "name",
+    header: "Amenity",
+    sortable: true,
+    sortKey: "name",
+    accessor: (a) => (
+      <div className="flex items-center gap-3">
+        <div className="relative h-12 w-12 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-border">
+          <img
+            src={a.image ?? undefined}
+            alt={a.name}
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+        </div>
+        <div className="min-w-0">
+          <p className="font-medium text-sm truncate">{a.name}</p>
+          <p className="text-xs text-muted-foreground line-clamp-1">
+            {a.description}
+          </p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: "type",
+    header: "Type",
+    sortable: true,
+    sortKey: "type",
+    accessor: (a) => (
+      <Badge variant="secondary" className="capitalize text-xs">
+        {a.type}
+      </Badge>
+    ),
+  },
+  {
+    key: "capacity",
+    header: "Capacity",
+    sortable: true,
+    sortKey: "capacity",
+    accessor: (a) => (
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Users className="h-3.5 w-3.5" />
+        <span>{a.capacity}</span>
+      </div>
+    ),
+    hideOnMobile: true,
+  },
+  {
+    key: "hours",
+    header: "Hours",
+    sortable: false,
+    accessor: (a) => (
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Clock className="h-3.5 w-3.5" />
+        <span className="whitespace-nowrap">
+          {a.openTime} – {a.closeTime}
+        </span>
+      </div>
+    ),
+    hideOnMobile: true,
+  },
+  {
+    key: "booking",
+    header: "Booking",
+    sortable: true,
+    sortKey: "booking",
+    accessor: (a) => (
+      <span className="text-sm text-muted-foreground">
+        {a.requiresBooking ? "Required" : "Open"}
+      </span>
+    ),
+    hideOnMobile: true,
+  },
+  {
+    key: "status",
+    header: "Status",
+    sortable: true,
+    sortKey: "status",
+    accessor: (a) => (
+      <Badge
+        variant={statusColors[a.status] ?? "secondary"}
+        className="capitalize text-xs"
+      >
+        {a.status}
+      </Badge>
+    ),
+  },
+];
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function AmenitiesPage() {
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const { data: amenities, isLoading } = useAmenities();
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
-  useEffect(() => { setTimeout(() => setLoading(false), 600); }, []);
+  const amenityList = Array.isArray(amenities) ? amenities : [];
 
-  const filtered = amenities.filter((a) =>
-    a.name.toLowerCase().includes(search.toLowerCase()) ||
-    a.description?.toLowerCase().includes(search.toLowerCase())
+  const filterBtns = useMemo(
+    () => [
+      "all",
+      "pool",
+      "gym",
+      "clubhouse",
+      "bbq",
+      "playground",
+      "parking",
+      "rooftop",
+      "lounge",
+    ],
+    []
   );
 
-  if (loading) {
-    return <div className="space-y-6"><Skeleton className="h-10 w-48" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[1,2,3,4,5,6].map((i) => (<Skeleton key={i} className="h-72 rounded-xl" />))}</div></div>;
-  }
+  const activeFilters = useMemo(() => {
+    if (typeFilter === "all") return [];
+    return [
+      {
+        key: "type",
+        label: `Type: ${typeFilter}`,
+        onRemove: () => setTypeFilter("all"),
+      },
+    ];
+  }, [typeFilter]);
+
+  const clearFilters = useCallback(() => {
+    setTypeFilter("all");
+  }, []);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Amenities</h1>
-          <p className="text-muted-foreground mt-1">Explore and book shared amenities</p>
+          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">
+            Amenities
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Explore and book shared amenities
+          </p>
         </div>
-        <Link href="/amenities/bookings"><Button variant="outline"><CalendarDays className="mr-2 h-4 w-4" /> View Bookings</Button></Link>
+        <Link href="/amenities/bookings">
+          <Button variant="outline">
+            <CalendarDays className="mr-2 h-4 w-4" /> View Bookings
+          </Button>
+        </Link>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input placeholder="Search amenities..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-10 w-full rounded-lg border border-input bg-muted/50 pl-10 pr-4 text-sm" />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((amenity) => (
-          <motion.div key={amenity.id} whileHover={{ y: -4 }} className="card-lift group overflow-hidden rounded-xl border border-border bg-card">
-            <div className="relative h-48 overflow-hidden">
-              <img src={amenity.image ?? undefined} alt={amenity.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-              <div className="absolute top-3 right-3">
-                <Badge variant="glass" className="text-white border-white/20 capitalize">{amenity.type}</Badge>
-              </div>
-            </div>
-            <div className="p-5">
-              <h3 className="font-semibold text-lg">{amenity.name}</h3>
-              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{amenity.description}</p>
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Users className="h-3.5 w-3.5" /> Capacity: {amenity.capacity}
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5" /> {amenity.openTime} - {amenity.closeTime}
-                </div>
-              </div>
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-                <Badge variant={amenity.status === "available" ? "success" : "warning"} className="capitalize">{amenity.status}</Badge>
-                {amenity.requiresBooking && (
-                  <Button size="sm" variant="outline">
-                    Book Now <ChevronRight className="ml-1 h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+      {/* Data Table */}
+      <DataTable
+        columns={columns}
+        data={amenityList}
+        keyExtractor={(a) => a.id}
+        isLoading={isLoading}
+        emptyState={{
+          icon: Sparkles,
+          title: "No amenities found",
+          description: "Amenities will be listed here once added to properties.",
+        }}
+        searchPlaceholder="Search amenities by name or description..."
+        showExport
+        exportFileName="amenities"
+        enableRowSelection
+        selectedRows={selectedRows}
+        onSelectionChange={setSelectedRows}
+        activeFilters={activeFilters}
+        onClearAllFilters={clearFilters}
+        showColumnToggle
+        toolbarChildren={
+          <div className="flex gap-2 flex-wrap">
+            {filterBtns.map((s) => (
+              <Button
+                key={s}
+                variant={typeFilter === s ? "default" : "outline"}
+                size="sm"
+                onClick={() => setTypeFilter(s)}
+                className="capitalize whitespace-nowrap"
+              >
+                {s}
+              </Button>
+            ))}
+          </div>
+        }
+        rowActions={(a) =>
+          a.requiresBooking ? (
+            <Button variant="outline" size="sm" aria-label={`Book ${a.name}`}>
+              Book <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          ) : (
+            <Link href={`/amenities/${a.id}`}>
+              <Button variant="ghost" size="icon-sm" aria-label={`View ${a.name}`}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          )
+        }
+        pageSize={10}
+        pageSizeOptions={[10, 25, 50]}
+      />
     </motion.div>
   );
 }

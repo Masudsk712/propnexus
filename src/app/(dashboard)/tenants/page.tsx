@@ -1,17 +1,16 @@
 "use client";
 
-import { tenants } from "@/data/mock";
+import { useTenants } from "@/hooks/useApi";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { motion } from "framer-motion";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   Users,
   Plus,
   Home,
   CalendarDays,
-  DollarSign,
   ChevronRight,
 } from "lucide-react";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
@@ -106,7 +105,7 @@ const columns: Column<Tenant>[] = [
 ];
 
 // ── Stats Overview ────────────────────────────────────────────────────────────
-function StatsOverview() {
+function StatsOverview({ tenants }: { tenants: Tenant[] }) {
   const stats = useMemo(
     () => [
       { label: "Total", value: tenants.length, color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -129,7 +128,7 @@ function StatsOverview() {
         bg: "bg-red-500/10",
       },
     ],
-    []
+    [tenants]
   );
 
   return (
@@ -149,13 +148,11 @@ function StatsOverview() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function TenantsPage() {
-  const [loading, setLoading] = useState(true);
+  const { data: tenants, isLoading, error } = useTenants();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
-  useEffect(() => {
-    setTimeout(() => setLoading(false), 600);
-  }, []);
+  const tenantList = Array.isArray(tenants) ? tenants : [];
 
   const filterBtns = useMemo(
     () => ["all", "active", "pending", "expired"],
@@ -198,14 +195,14 @@ export default function TenantsPage() {
       </div>
 
       {/* Stats Overview */}
-      <StatsOverview />
+      {!isLoading && <StatsOverview tenants={tenantList} />}
 
       {/* Data Table */}
       <DataTable
         columns={columns}
-        data={tenants}
+        data={tenantList}
         keyExtractor={(t) => t.id}
-        isLoading={loading}
+        isLoading={isLoading}
         emptyState={{
           icon: Users,
           title: "No tenants found",

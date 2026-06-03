@@ -201,16 +201,12 @@ export interface ActivityLog {
 export interface DashboardStats {
   totalProperties: number;
   totalUnits: number;
+  occupiedUnits: number;
   occupancyRate: number;
   totalRevenue: number;
-  revenueChange: number;
-  occupancyChange: number;
-  activeMaintenanceRequests: number;
-  maintenanceChange: number;
+  totalTenants: number;
+  activeMaintenance: number;
   totalBookings: number;
-  bookingChange: number;
-  monthlyRevenue: { month: string; revenue: number }[];
-  occupancyTrend: { month: string; rate: number }[];
   maintenanceByCategory: { category: string; count: number }[];
   revenueByProperty: { property: string; revenue: number }[];
 }

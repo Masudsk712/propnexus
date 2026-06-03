@@ -469,33 +469,63 @@ export const activityLogRepo = {
 // Dashboard Aggregate (fully optimized)
 // ────────────────────────────────────────────────────────────────────────────
 export const dashboardRepo = {
-  async getStats(): Promise<{
-    totalProperties: number;
-    totalUnits: number;
-    occupiedUnits: number;
-    totalRevenue: number;
-    activeMaintenance: number;
-    totalBookings: number;
-  }> {
-    const [propertyCount, aggregates, maintenanceCount, bookingCount] =
-      await Promise.all([
-        prisma.property.count(),
-        prisma.property.aggregate({
-          _sum: { units: true, occupiedUnits: true, monthlyRevenue: true },
-        }),
-        prisma.maintenanceRequest.count({
-          where: { status: { in: ["open", "in-progress"] } },
-        }),
-        prisma.booking.count(),
-      ]);
+  async getStats() {
+    const [
+      propertyCount,
+      aggregates,
+      tenantCount,
+      maintenanceCount,
+      bookingCount,
+      maintenanceByCategory,
+      revenueByProperty,
+    ] = await Promise.all([
+      prisma.property.count(),
+      prisma.property.aggregate({
+        _sum: { units: true, occupiedUnits: true, monthlyRevenue: true },
+      }),
+      prisma.tenant.count(),
+      prisma.maintenanceRequest.count({
+        where: { status: { in: ["open", "in-progress"] } },
+      }),
+      prisma.booking.count(),
+      prisma.maintenanceRequest.groupBy({
+        by: ["category"],
+        _count: true,
+      }),
+      prisma.property.findMany({
+        select: { name: true, monthlyRevenue: true },
+        orderBy: { monthlyRevenue: "desc" },
+      }),
+    ]);
+
+    const totalUnits = aggregates._sum.units ?? 0;
+    const occupiedUnits = aggregates._sum.occupiedUnits ?? 0;
+    const totalRevenue = aggregates._sum.monthlyRevenue ?? 0;
+    const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 1000) / 10 : 0;
+
+    // Build maintenance by category
+    const categories = maintenanceByCategory.map((c) => ({
+      category: c.category.charAt(0).toUpperCase() + c.category.slice(1),
+      count: c._count,
+    }));
+
+    // Build revenue by property
+    const properties = revenueByProperty.map((p) => ({
+      property: p.name,
+      revenue: p.monthlyRevenue,
+    }));
 
     return {
       totalProperties: propertyCount,
-      totalUnits: aggregates._sum.units ?? 0,
-      occupiedUnits: aggregates._sum.occupiedUnits ?? 0,
-      totalRevenue: aggregates._sum.monthlyRevenue ?? 0,
+      totalUnits,
+      occupiedUnits,
+      occupancyRate,
+      totalRevenue,
+      totalTenants: tenantCount,
       activeMaintenance: maintenanceCount,
       totalBookings: bookingCount,
+      maintenanceByCategory: categories.length > 0 ? categories : [],
+      revenueByProperty: properties.length > 0 ? properties : [],
     };
   },
 };
