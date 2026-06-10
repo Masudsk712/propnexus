@@ -18,7 +18,8 @@
     "prisma:studio": "prisma studio",
     "db:setup": "npm run prisma:generate && npm run prisma:push && npm run prisma:seed",
     "db:push:prod": "npx prisma db push --accept-data-loss",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate || echo 'Prisma generate skipped (DATABASE_URL may be missing at install time)'",
+    "vercel-build": "prisma generate && next build",
     "deploy:preview": "vercel",
     "deploy:prod": "vercel --prod",
     "health": "curl -s http://localhost:3000/api/health | npx json"

@@ -136,7 +136,9 @@ const nextConfig: NextConfig = {
   },
 
   // ── Output ──────────────────────────────────────────────────────────────
-  output: "standalone",
+  // NOTE: "standalone" output is NOT used for Vercel deployments.
+  // Vercel automatically optimizes for serverless when build runs on its platform.
+  // output: "standalone",
 
   // ── Production Source Maps ──────────────────────────────────────────────
   productionBrowserSourceMaps: false,
