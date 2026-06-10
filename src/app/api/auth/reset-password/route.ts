@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limiting: 3 requests per minute per IP
     const key = getRateLimitKey(req);
-    const { success, remaining, resetTime } = rateLimit(key, {
+    const { success, remaining, resetTime } = await rateLimit(key, {
       interval: 60_000,
       maxRequests: 3,
     });

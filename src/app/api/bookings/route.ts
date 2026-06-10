@@ -10,11 +10,15 @@ import { bookingService } from "@/services";
 import { emitBookingEvent, broadcastActivity } from "@/lib/socket-server";
 import { SOCKET_EVENTS } from "@/lib/socket-types";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
 
-  const result = await bookingService.getAll();
+  const { searchParams } = new URL(req.url);
+  const page = parseInt(searchParams.get("page") ?? "1", 10);
+  const limit = parseInt(searchParams.get("limit") ?? "20", 10);
+
+  const result = await bookingService.getAll({ page, limit });
   if (!result.success) return errorResponse(result.error ?? "Failed to fetch bookings", 500);
   return successResponse(result.data);
 }

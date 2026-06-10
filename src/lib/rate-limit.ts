@@ -1,20 +1,59 @@
 // ============================================================================
-// Rate Limiting — Simple in-memory rate limiter for API routes
-// For production, use Redis or Upstash Rate Limit.
+// Rate Limiting — Upstash-based rate limiter for API routes
+// Falls back to in-memory if UPSTASH_REDIS_REST_URL is not configured.
 // ============================================================================
 
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
+// ── Upstash Rate Limiter ───────────────────────────────────────────────────
+let rateLimiter: Ratelimit | null = null;
+
+function getRateLimiter(): Ratelimit | null {
+  if (rateLimiter) return rateLimiter;
+
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (redisUrl && redisToken) {
+    const redis = new Redis({ url: redisUrl, token: redisToken });
+    rateLimiter = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(10, "10 s"),
+      analytics: true,
+      prefix: "ratelimit",
+    });
+  }
+
+  return rateLimiter;
+}
+
+// ── In-memory fallback ─────────────────────────────────────────────────────
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
 export interface RateLimitOptions {
   interval?: number; // in milliseconds (default: 60000 = 1 minute)
-  maxRequests?: number; // max requests per interval (default: 5)
+  maxRequests?: number; // max requests per interval (default: 10)
 }
 
-export function rateLimit(
+export async function rateLimit(
   key: string,
   options: RateLimitOptions = {}
-): { success: boolean; remaining: number; resetTime: number } {
-  const { interval = 60_000, maxRequests = 5 } = options;
+): Promise<{ success: boolean; remaining: number; resetTime: number }> {
+  const upstashLimiter = getRateLimiter();
+
+  // Use Upstash if available
+  if (upstashLimiter) {
+    const result = await upstashLimiter.limit(key);
+    return {
+      success: result.success,
+      remaining: result.remaining,
+      resetTime: result.reset,
+    };
+  }
+
+  // Fallback: in-memory rate limiting
+  const { interval = 60_000, maxRequests = 10 } = options;
   const now = Date.now();
   const record = rateLimitMap.get(key);
 

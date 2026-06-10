@@ -1,5 +1,6 @@
 // ============================================================================
 // Reusable Data-Fetching Hooks — TanStack Query wrappers for all entities
+// Supports pagination through query params.
 // ============================================================================
 
 "use client";
@@ -11,6 +12,7 @@ import type {
   MaintenanceRequest,
   Amenity,
   Booking,
+  Payment,
   Notification,
   ActivityLog,
   DashboardStats,
@@ -28,11 +30,20 @@ async function fetcher<T>(url: string, options?: RequestInit): Promise<T> {
   return json.data as T;
 }
 
+// ── Pagination helper ─────────────────────────────────────────────────────
+function paginationParams(page?: number, limit?: number): string {
+  const params = new URLSearchParams();
+  if (page) params.set("page", String(page));
+  if (limit) params.set("limit", String(limit));
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
 // ── Properties ────────────────────────────────────────────────────────────
-export function useProperties() {
+export function useProperties(page?: number, limit?: number) {
   return useQuery({
-    queryKey: ["properties"],
-    queryFn: () => fetcher<Property[]>("/api/properties"),
+    queryKey: ["properties", page, limit],
+    queryFn: () => fetcher<Property[]>(`/api/properties${paginationParams(page, limit)}`),
   });
 }
 
@@ -57,18 +68,18 @@ export function useCreateProperty() {
 }
 
 // ── Tenants ───────────────────────────────────────────────────────────────
-export function useTenants() {
+export function useTenants(page?: number, limit?: number) {
   return useQuery({
-    queryKey: ["tenants"],
-    queryFn: () => fetcher<Tenant[]>("/api/tenants"),
+    queryKey: ["tenants", page, limit],
+    queryFn: () => fetcher<Tenant[]>(`/api/tenants${paginationParams(page, limit)}`),
   });
 }
 
 // ── Maintenance ───────────────────────────────────────────────────────────
-export function useMaintenanceRequests() {
+export function useMaintenanceRequests(page?: number, limit?: number) {
   return useQuery({
-    queryKey: ["maintenance"],
-    queryFn: () => fetcher<MaintenanceRequest[]>("/api/maintenance"),
+    queryKey: ["maintenance", page, limit],
+    queryFn: () => fetcher<MaintenanceRequest[]>(`/api/maintenance${paginationParams(page, limit)}`),
   });
 }
 
@@ -88,18 +99,18 @@ export function useCreateMaintenance() {
 }
 
 // ── Amenities ─────────────────────────────────────────────────────────────
-export function useAmenities() {
+export function useAmenities(page?: number, limit?: number) {
   return useQuery({
-    queryKey: ["amenities"],
-    queryFn: () => fetcher<Amenity[]>("/api/amenities"),
+    queryKey: ["amenities", page, limit],
+    queryFn: () => fetcher<Amenity[]>(`/api/amenities${paginationParams(page, limit)}`),
   });
 }
 
 // ── Bookings ──────────────────────────────────────────────────────────────
-export function useBookings() {
+export function useBookings(page?: number, limit?: number) {
   return useQuery({
-    queryKey: ["bookings"],
-    queryFn: () => fetcher<Booking[]>("/api/bookings"),
+    queryKey: ["bookings", page, limit],
+    queryFn: () => fetcher<Booking[]>(`/api/bookings${paginationParams(page, limit)}`),
   });
 }
 
@@ -115,6 +126,14 @@ export function useCreateBooking() {
       qc.invalidateQueries({ queryKey: ["bookings"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
+  });
+}
+
+// ── Payments ──────────────────────────────────────────────────────────────
+export function usePayments(page?: number, limit?: number) {
+  return useQuery({
+    queryKey: ["payments", page, limit],
+    queryFn: () => fetcher<Payment[]>(`/api/payments${paginationParams(page, limit)}`),
   });
 }
 

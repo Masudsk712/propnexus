@@ -8,11 +8,15 @@ import { unauthorizedResponse, forbiddenResponse, successResponse, errorResponse
 import { createTenantSchema } from "@/validations";
 import { tenantService } from "@/services";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
 
-  const result = await tenantService.getAll();
+  const { searchParams } = new URL(req.url);
+  const page = parseInt(searchParams.get("page") ?? "1", 10);
+  const limit = parseInt(searchParams.get("limit") ?? "20", 10);
+
+  const result = await tenantService.getAll({ page, limit });
   if (!result.success) return errorResponse(result.error ?? "Failed to fetch tenants", 500);
   return successResponse(result.data);
 }

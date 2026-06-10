@@ -1,11 +1,11 @@
 "use client";
 
-import { payments } from "@/data/mock";
+import { usePayments } from "@/hooks/useApi";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { motion } from "framer-motion";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   DollarSign,
   CreditCard,
@@ -142,12 +142,12 @@ const columns: Column<Payment>[] = [
 ];
 
 // ── Stats Overview ────────────────────────────────────────────────────────────
-function StatsOverview() {
-  const totalRevenue = payments
+function StatsOverview({ payments: paymentList }: { payments: Payment[] }) {
+  const totalRevenue = paymentList
     .filter((p) => p.status === "completed")
     .reduce((sum, p) => sum + p.amount, 0);
 
-  const pendingAmount = payments
+  const pendingAmount = paymentList
     .filter((p) => p.status === "pending")
     .reduce((sum, p) => sum + p.amount, 0);
 
@@ -167,18 +167,18 @@ function StatsOverview() {
       },
       {
         label: "Completed",
-        value: `${payments.filter((p) => p.status === "completed").length} txns`,
+        value: `${paymentList.filter((p) => p.status === "completed").length} txns`,
         color: "text-blue-500",
         bg: "bg-blue-500/10",
       },
       {
         label: "Failed",
-        value: `${payments.filter((p) => p.status === "failed").length} txns`,
+        value: `${paymentList.filter((p) => p.status === "failed").length} txns`,
         color: "text-red-500",
         bg: "bg-red-500/10",
       },
     ],
-    [totalRevenue, pendingAmount]
+    [totalRevenue, pendingAmount, paymentList]
   );
 
   return (
@@ -201,13 +201,11 @@ function StatsOverview() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function PaymentsPage() {
-  const [loading, setLoading] = useState(true);
+  const { data: payments, isLoading } = usePayments();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
-  useEffect(() => {
-    setTimeout(() => setLoading(false), 600);
-  }, []);
+  const paymentList = Array.isArray(payments) ? payments : [];
 
   const filterBtns = useMemo(
     () => ["all", "completed", "pending", "failed", "refunded"],
@@ -248,14 +246,14 @@ export default function PaymentsPage() {
       </div>
 
       {/* Stats Overview */}
-      <StatsOverview />
+      {!isLoading && <StatsOverview payments={paymentList} />}
 
       {/* Data Table */}
       <DataTable
         columns={columns}
-        data={payments}
+        data={paymentList}
         keyExtractor={(p) => p.id}
-        isLoading={loading}
+        isLoading={isLoading}
         emptyState={{
           icon: DollarSign,
           title: "No payments found",
