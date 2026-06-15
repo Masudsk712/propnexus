@@ -49,42 +49,42 @@ export default function ManagerDashboardPage() {
   const recentActivity = data?.recentActivity?.slice(0, 4) ?? [];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 md:space-y-5">
       {/* Welcome Banner */}
-      <motion.div {...fadeUp} className="relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-background border border-emerald-500/20 p-5">
+      <motion.div {...fadeUp} className="relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-background border border-emerald-500/20 p-4 md:p-5">
         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl" />
-        <div className="relative z-10 flex items-start justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/20">
-              <Briefcase className="h-6 w-6 text-white" />
+        <div className="relative z-10 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 md:gap-4">
+            <div className="flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/20 flex-shrink-0">
+              <Briefcase className="h-5 w-5 md:h-6 md:w-6 text-white" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-xl font-bold tracking-tight">
                 Welcome, {session?.user?.name || "Manager"}
               </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Property portfolio · {stats?.totalProperties || 0} properties · {stats?.totalUnits || 0} units · {stats?.occupancyRate || 0}% occupancy
+              <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
+                Property portfolio · {stats?.totalProperties || 0} properties · {stats?.totalUnits || 0} units
               </p>
-              <div className="flex items-center gap-3 mt-3">
-                <Badge variant="default" className="bg-emerald-500/15 text-emerald-500 border-emerald-500/20 gap-1.5">
+              <div className="flex items-center gap-2 md:gap-3 mt-2 flex-wrap">
+                <Badge variant="default" className="bg-emerald-500/15 text-emerald-500 border-emerald-500/20 gap-1.5 text-[10px] md:text-xs">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Portfolio Active
                 </Badge>
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <span className="text-[10px] md:text-xs text-muted-foreground flex items-center gap-1">
                   <TrendingUp className="h-3 w-3 text-emerald-500" />
-                  ${((stats?.totalRevenue || 0) / 1000).toFixed(0)}k managed revenue
+                  ${((stats?.totalRevenue || 0) / 1000).toFixed(0)}k managed
                 </span>
               </div>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={logout} className="flex-shrink-0">
+          <Button variant="outline" size="sm" onClick={logout} className="flex-shrink-0 text-xs h-8 md:h-9">
             Sign Out
           </Button>
         </div>
       </motion.div>
 
       {/* KPI Cards */}
-      <motion.div {...fadeUp} transition={{ delay: 0.05 }} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <motion.div {...fadeUp} transition={{ delay: 0.05 }} className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
         <KPICard title="Revenue" value={stats?.totalRevenue ?? 0} prefix="$" decimals={0} icon={TrendingUp} variant="revenue" isLoading={isLoading} change={8.3} changeLabel="this month" />
         <KPICard title="Properties" value={stats?.totalProperties ?? 0} icon={Building2} variant="default" isLoading={isLoading} change={1.5} changeLabel="new listings" />
         <KPICard title="Occupancy" value={stats?.occupancyRate ?? 0} suffix="%" icon={Star} variant="occupancy" isLoading={isLoading} change={2.1} changeLabel="vs last month" />
@@ -126,7 +126,7 @@ export default function ManagerDashboardPage() {
       </motion.div>
 
       {/* Bottom Row */}
-      <motion.div {...fadeUp} transition={{ delay: 0.12 }} className="grid gap-4 lg:grid-cols-2">
+      <motion.div {...fadeUp} transition={{ delay: 0.12 }} className="grid gap-3 md:gap-4 lg:grid-cols-2">
         <DashboardWidget title="Pending Maintenance" description="Requests requiring your attention" isLoading={isLoading} delay={0}>
           <ActivityTimeline
             items={recentActivity
@@ -157,7 +157,7 @@ export default function ManagerDashboardPage() {
       </motion.div>
 
       {/* Quick Actions */}
-      <motion.div {...fadeUp} transition={{ delay: 0.15 }}>
+      <motion.div {...fadeUp} transition={{ delay: 0.15 }} className="pb-2">
         <QuickActionsPanel
           actions={[
             { id: "view-props", title: "View Properties", description: "Manage your property portfolio", icon: Building2, href: "/properties" },

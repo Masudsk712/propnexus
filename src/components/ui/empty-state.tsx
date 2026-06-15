@@ -25,25 +25,25 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
       className={cn(
-        "flex flex-col items-center justify-center py-16 px-4 text-center",
+        "flex flex-col items-center justify-center py-14 md:py-20 px-4 text-center",
         className
       )}
     >
-      <div className="rounded-full bg-muted p-4 mb-4">
+      <div className="rounded-2xl bg-gradient-to-br from-muted to-muted/50 p-4 mb-4 ring-1 ring-border/50">
         <Icon className="h-8 w-8 text-muted-foreground" />
       </div>
-      <h3 className="text-lg font-semibold">{title}</h3>
+      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
       {description && (
-        <p className="text-sm text-muted-foreground mt-2 max-w-sm">
+        <p className="text-sm text-muted-foreground mt-1.5 max-w-sm leading-relaxed">
           {description}
         </p>
       )}
       {action && (
-        <Button onClick={action.onClick} className="mt-6" size="sm">
+        <Button onClick={action.onClick} className="mt-5" size="sm">
           {action.label}
         </Button>
       )}

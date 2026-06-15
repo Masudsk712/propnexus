@@ -129,7 +129,7 @@ export function Modal({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={closeOnBackdrop ? onClose : undefined}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            className="modal-overlay fixed inset-0"
             aria-hidden="true"
           />
 
@@ -140,12 +140,12 @@ export function Modal({
             aria-modal="true"
             aria-labelledby={title ? "modal-title" : undefined}
             aria-describedby={description ? "modal-description" : undefined}
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            exit={{ opacity: 0, scale: 0.96, y: 16 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
             className={cn(
-              "relative z-50 w-full rounded-2xl border border-border bg-card shadow-2xl max-h-[85vh] overflow-y-auto",
+              "modal-content relative z-50 w-full max-h-[85vh] overflow-y-auto",
               sizeClasses[size],
               mobileFullScreen && "max-sm:max-w-none max-sm:rounded-none max-sm:max-h-none max-sm:h-full max-sm:fixed max-sm:inset-0",
               className
@@ -153,15 +153,15 @@ export function Modal({
           >
             {/* Header */}
             {(title || description) && (
-              <div className="flex items-start justify-between p-6 pb-4 border-b border-border">
-                <div>
+              <div className="flex items-start justify-between p-5 md:p-6 pb-3 md:pb-4 border-b border-border">
+                <div className="min-w-0 flex-1 mr-2">
                   {title && (
-                    <h2 id="modal-title" className="text-lg font-semibold text-foreground">
+                    <h2 id="modal-title" className="text-base md:text-lg font-semibold text-foreground tracking-tight">
                       {title}
                     </h2>
                   )}
                   {description && (
-                    <p id="modal-description" className="text-sm text-muted-foreground mt-1">
+                    <p id="modal-description" className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
                       {description}
                     </p>
                   )}
@@ -170,7 +170,7 @@ export function Modal({
                   variant="ghost"
                   size="icon-sm"
                   onClick={onClose}
-                  className="flex-shrink-0 rounded-lg"
+                  className="flex-shrink-0 rounded-lg hover:bg-muted"
                   aria-label="Close dialog"
                 >
                   <X className="h-4 w-4" />
@@ -179,7 +179,7 @@ export function Modal({
             )}
 
             {/* Content */}
-            <div className="p-6">{children}</div>
+            <div className="p-5 md:p-6">{children}</div>
           </motion.div>
         </div>
       )}

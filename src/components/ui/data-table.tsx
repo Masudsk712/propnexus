@@ -497,7 +497,7 @@ export function DataTable<T>({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.02, duration: 0.25 }}
                   className={cn(
-                    "border-b border-border transition-colors hover:bg-muted/30",
+                    "border-b border-border transition-colors data-table-row",
                     onRowClick && "cursor-pointer",
                     isSelected && "bg-primary/5"
                   )}

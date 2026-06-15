@@ -83,7 +83,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden scrollbar-none">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden scrollbar-none px-0.5">
         {NAV_ITEMS.map((item) => {
           const Icon = ICON_MAP[item.icon];
           const hasChildren = !!item.children?.length;
@@ -95,17 +95,17 @@ export function Sidebar() {
             <div key={item.title} className="relative">
               {hasChildren ? (
                 <div className="relative">
-                  <button
-                    onClick={() => toggleExpand(item.title)}
-                    className={cn(
-                      "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200",
-                      "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                      active
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                        : "text-sidebar-foreground/70 hover:text-sidebar-foreground"
-                    )}
+                    <button
+                      onClick={() => toggleExpand(item.title)}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200 group",
+                        "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        active
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                          : "text-sidebar-foreground/70 hover:text-sidebar-foreground"
+                      )}
                   >
-                    <Icon className={cn("h-4.5 w-4.5 flex-shrink-0 transition-colors", active && "text-sidebar-accent-foreground")} />
+                    <Icon className={cn("h-4.5 w-4.5 flex-shrink-0 transition-all duration-200 group-hover:scale-110", active && "text-sidebar-accent-foreground")} />
                     <AnimatePresence mode="wait">
                       {!sidebarCollapsed && (
                         <motion.span
@@ -133,7 +133,7 @@ export function Sidebar() {
                 <Link
                   href={item.href}
                   className={cn(
-                    "relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200",
+                    "relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200 group",
                     "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                     active
                       ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
@@ -141,7 +141,7 @@ export function Sidebar() {
                   )}
                 >
                   <div className="relative flex-shrink-0">
-                    <Icon className={cn("h-4.5 w-4.5 transition-colors", active && "text-sidebar-accent-foreground")} />
+                    <Icon className={cn("h-4.5 w-4.5 transition-all duration-200 group-hover:scale-110", active && "text-sidebar-accent-foreground")} />
                     {hasNotificationBadge && (
                       <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-destructive text-[8px] font-bold text-destructive-foreground ring-2 ring-sidebar">
                         {unreadCount > 9 ? "9+" : unreadCount}
@@ -275,16 +275,16 @@ export function Sidebar() {
     <>
       {/* Desktop sidebar */}
       <motion.aside
-        initial={false}
-        animate={{
-          width: sidebarCollapsed ? 72 : 260,
-        }}
-        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-        className={cn(
-          "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar lg:flex",
-          "shadow-sm"
-        )}
-      >
+          initial={false}
+          animate={{
+            width: sidebarCollapsed ? 68 : 260,
+          }}
+          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+          className={cn(
+            "fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar lg:flex",
+            "shadow-sm"
+          )}
+        >
         {sidebarContent}
       </motion.aside>
 
