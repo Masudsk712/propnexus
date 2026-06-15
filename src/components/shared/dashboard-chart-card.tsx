@@ -24,38 +24,42 @@ export function DashboardChartCard({
   className,
   isLoading = false,
   delay = 0,
-  skeletonHeight = 300,
+  skeletonHeight = 280,
 }: DashboardChartCardProps) {
   if (isLoading) {
     return (
-      <div className={cn("rounded-2xl border border-border bg-card p-6", className)}>
-        <div className="flex items-center justify-between mb-6">
+      <div className={cn("rounded-xl border border-border bg-card p-5", className)}>
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <Skeleton className="h-6 w-48" />
-            {subtitle && <Skeleton className="h-4 w-64 mt-1.5" />}
+            <Skeleton className="h-5 w-40" />
+            {subtitle && <Skeleton className="h-3.5 w-52 mt-1" />}
           </div>
-          {badge !== undefined && <Skeleton className="h-6 w-20 rounded-full" />}
+          {badge !== undefined && <Skeleton className="h-5 w-16 rounded-full" />}
         </div>
-        <Skeleton className="w-full rounded-xl" style={{ height: skeletonHeight }} />
+        <Skeleton className="w-full rounded-lg" style={{ height: skeletonHeight }} />
       </div>
     );
   }
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-      className={cn("rounded-2xl border border-border bg-card p-5 sm:p-6", "transition-shadow duration-300 hover:shadow-lg", className)}
+      transition={{ delay, duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+      className={cn(
+        "rounded-xl border border-border bg-card p-4 sm:p-5",
+        "transition-all duration-200 hover:shadow-lg dark:hover:shadow-primary/5",
+        className
+      )}
     >
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-semibold text-base sm:text-lg text-foreground">{title}</h3>
-          {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+          <h3 className="font-semibold text-sm sm:text-base text-foreground">{title}</h3>
+          {subtitle && <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>}
         </div>
         {badge && <div className="flex-shrink-0">{badge}</div>}
       </div>
-      <Suspense fallback={<Skeleton className="w-full rounded-xl" style={{ height: skeletonHeight }} />}>
+      <Suspense fallback={<Skeleton className="w-full rounded-lg" style={{ height: skeletonHeight }} />}>
         {children}
       </Suspense>
     </motion.div>
