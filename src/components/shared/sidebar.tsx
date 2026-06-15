@@ -19,9 +19,11 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { currentUser } from "@/data/mock";
+import { useSession } from "next-auth/react";
 
 export function Sidebar() {
+  const { data: session } = useSession();
+  const currentUser = session?.user;
   const { sidebarCollapsed, toggleSidebar, mobileSidebarOpen, setMobileSidebarOpen } =
     useUIStore();
   const { unreadCount } = useNotificationStore();
@@ -270,8 +272,8 @@ export function Sidebar() {
           >
             <div className="relative flex-shrink-0">
               <img
-                src={currentUser.image ?? undefined}
-                alt={currentUser.name}
+                src={currentUser?.image ?? undefined}
+                alt={currentUser?.name ?? "User"}
                 className="h-8 w-8 rounded-full object-cover ring-2 ring-sidebar-border"
               />
               <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-sidebar" />
@@ -284,8 +286,8 @@ export function Sidebar() {
                   exit={{ opacity: 0 }}
                   className="flex-1 min-w-0"
                 >
-                  <p className="text-sm font-medium truncate">{currentUser.name}</p>
-                  <p className="text-xs text-muted-foreground capitalize truncate">{currentUser.role}</p>
+                  <p className="text-sm font-medium truncate">{currentUser?.name ?? "User"}</p>
+                  <p className="text-xs text-muted-foreground capitalize truncate">{currentUser?.role ?? "tenant"}</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -307,8 +309,8 @@ export function Sidebar() {
               animate={{ opacity: 1, x: 0 }}
               className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 rounded-lg bg-popover border border-border px-3 py-2 text-sm shadow-xl whitespace-nowrap pointer-events-none"
             >
-              <p className="font-medium">{currentUser.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{currentUser.role}</p>
+              <p className="font-medium">{currentUser?.name ?? "User"}</p>
+              <p className="text-xs text-muted-foreground capitalize">{currentUser?.role ?? "tenant"}</p>
             </motion.div>
           )}
         </div>

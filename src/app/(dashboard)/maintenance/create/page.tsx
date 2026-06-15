@@ -15,8 +15,9 @@ import { FileUpload } from "@/components/forms/file-upload";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useProperties } from "@/hooks/useApi";
 import { MAINTENANCE_CATEGORIES, MAINTENANCE_PRIORITIES } from "@/constants";
-import { properties } from "@/data/mock";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -167,10 +168,14 @@ function getStepFields(step: StepKey): (keyof FormData)[] {
 
 export default function CreateMaintenancePage() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const { data: propertiesData, isLoading: propertiesLoading } = useProperties();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
+
+  const properties = Array.isArray(propertiesData) ? propertiesData : [];
 
   const {
     register,
@@ -194,6 +199,7 @@ export default function CreateMaintenancePage() {
 
   const watchPriority = watch("priority");
   const watchCategory = watch("category");
+  const selectedProperty = properties.find((p) => p.id === watch("propertyId"));
 
   const stepKeys: StepKey[] = ["property", "details", "category", "priority", "attachments", "review"];
 
@@ -247,10 +253,38 @@ export default function CreateMaintenancePage() {
     }
 
     setLoading(true);
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 1500));
-    setLoading(false);
-    setIsSuccess(true);
+    try {
+      const formValues = {
+        propertyId: watch("propertyId"),
+        propertyName: selectedProperty?.name ?? "Unknown",
+        unit: watch("unit"),
+        title: watch("title"),
+        description: watch("description"),
+        category: watch("category"),
+        priority: watch("priority"),
+        status: "open",
+        requestedBy: session?.user?.name ?? "Unknown",
+      };
+
+      const res = await fetch("/api/maintenance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formValues),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.error || "Failed to submit maintenance request");
+        return;
+      }
+
+      toast.success("Maintenance request created successfully!");
+      setIsSuccess(true);
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (isSuccess) {
@@ -338,7 +372,9 @@ export default function CreateMaintenancePage() {
                     {...register("propertyId")}
                     className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
-                    <option value="">Select property...</option>
+                    <option value="">
+                      {propertiesLoading ? "Loading properties..." : "Select property..."}
+                    </option>
                     {properties.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
@@ -522,7 +558,7 @@ export default function CreateMaintenancePage() {
               <div className="grid gap-4 sm:grid-cols-2 text-sm">
                 <ReviewItem
                   label="Property"
-                  value={properties.find((p) => p.id === watch("propertyId"))?.name}
+                  value={selectedProperty?.name}
                 />
                 <ReviewItem label="Unit" value={watch("unit")} />
                 <ReviewItem label="Title" value={watch("title")} fullWidth />

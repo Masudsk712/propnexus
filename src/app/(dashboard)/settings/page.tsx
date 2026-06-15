@@ -1,16 +1,17 @@
 "use client";
 
-import { currentUser } from "@/data/mock";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   Settings, User, Bell, Shield, Palette, Building2,
   Mail, Phone, MapPin, Camera, Moon, Sun, Globe,
-  Save, Key, CreditCard, Users,
+  Save, Key, CreditCard, Users, Loader2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -24,15 +25,81 @@ const tabs = [
 ];
 
 export default function SettingsPage() {
-  const [loading, setLoading] = useState(true);
+  const { data: session, update: updateSession } = useSession();
+  const currentUser = session?.user;
+  const [saving, setSaving] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
   const { theme, setTheme } = useTheme();
 
-  useEffect(() => { setTimeout(() => setLoading(false), 600); }, []);
+  // Profile form state
+  const [name, setName] = useState(currentUser?.name ?? "");
+  const [email] = useState(currentUser?.email ?? "");
+  const [phone, setPhone] = useState((currentUser as any)?.phone ?? "");
+  const [role] = useState(currentUser?.role ?? "tenant");
 
-  if (loading) {
+  // Password form state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  if (!session) {
     return <div className="space-y-6"><Skeleton className="h-10 w-48" /><div className="flex gap-4"><Skeleton className="h-96 w-64" /><Skeleton className="h-96 flex-1 rounded-xl" /></div></div>;
   }
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/auth/update-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.error || "Failed to save profile");
+        return;
+      }
+      await updateSession();
+      toast.success("Profile updated successfully");
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSavePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const res = await fetch("/api/auth/update-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.error || "Failed to update password");
+        return;
+      }
+      toast.success("Password updated successfully");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setSavingPassword(false);
+    }
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -68,24 +135,54 @@ export default function SettingsPage() {
               <h2 className="text-lg font-semibold">Profile Information</h2>
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <img src={currentUser.image ?? undefined} alt={currentUser.name} className="h-20 w-20 rounded-full object-cover ring-4 ring-border" />
+                  <img
+                    src={currentUser?.image ?? "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop&crop=face"}
+                    alt={currentUser?.name ?? "User"}
+                    className="h-20 w-20 rounded-full object-cover ring-4 ring-border"
+                  />
                   <button className="absolute bottom-0 right-0 rounded-full bg-primary p-1.5 text-primary-foreground shadow-md hover:bg-primary/90 transition-colors">
                     <Camera className="h-3.5 w-3.5" />
                   </button>
                 </div>
                 <div>
-                  <h3 className="font-semibold">{currentUser.name}</h3>
-                  <p className="text-sm text-muted-foreground">{currentUser.email}</p>
-                  <Badge variant="secondary" className="mt-1 capitalize">{currentUser.role}</Badge>
+                  <h3 className="font-semibold">{currentUser?.name}</h3>
+                  <p className="text-sm text-muted-foreground">{currentUser?.email}</p>
+                  <Badge variant="secondary" className="mt-1 capitalize">{currentUser?.role}</Badge>
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Input label="Full Name" defaultValue={currentUser.name} icon={<User className="h-4 w-4" />} />
-                <Input label="Email" defaultValue={currentUser.email} icon={<Mail className="h-4 w-4" />} />
-                <Input label="Phone" defaultValue={currentUser.phone ?? undefined} icon={<Phone className="h-4 w-4" />} />
-                <Input label="Role" defaultValue={currentUser.role} disabled icon={<Users className="h-4 w-4" />} />
+                <Input
+                  label="Full Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  icon={<User className="h-4 w-4" />}
+                />
+                <Input
+                  label="Email"
+                  value={email}
+                  disabled
+                  icon={<Mail className="h-4 w-4" />}
+                />
+                <Input
+                  label="Phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  icon={<Phone className="h-4 w-4" />}
+                />
+                <Input
+                  label="Role"
+                  value={role}
+                  disabled
+                  icon={<Users className="h-4 w-4" />}
+                />
               </div>
-              <Button><Save className="mr-2 h-4 w-4" /> Save Changes</Button>
+              <Button onClick={handleSaveProfile} disabled={saving}>
+                {saving ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
+                ) : (
+                  <><Save className="mr-2 h-4 w-4" /> Save Changes</>
+                )}
+              </Button>
             </div>
           )}
 
@@ -148,10 +245,34 @@ export default function SettingsPage() {
             <div className="space-y-6">
               <h2 className="text-lg font-semibold">Security</h2>
               <div className="space-y-4">
-                <Input label="Current Password" type="password" placeholder="Enter current password" />
-                <Input label="New Password" type="password" placeholder="Enter new password" />
-                <Input label="Confirm New Password" type="password" placeholder="Confirm new password" />
-                <Button><Key className="mr-2 h-4 w-4" /> Update Password</Button>
+                <Input
+                  label="Current Password"
+                  type="password"
+                  placeholder="Enter current password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                />
+                <Input
+                  label="New Password"
+                  type="password"
+                  placeholder="Enter new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+                <Input
+                  label="Confirm New Password"
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+                <Button onClick={handleSavePassword} disabled={savingPassword}>
+                  {savingPassword ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating...</>
+                  ) : (
+                    <><Key className="mr-2 h-4 w-4" /> Update Password</>
+                  )}
+                </Button>
               </div>
               <div className="mt-8 pt-6 border-t border-border">
                 <h3 className="font-medium text-destructive mb-2">Danger Zone</h3>

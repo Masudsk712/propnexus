@@ -6,6 +6,7 @@
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
+import { sendEmail, buildPasswordResetEmail } from "@/lib/email";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -126,11 +127,21 @@ export async function forgotPassword(email: string): Promise<ForgotPasswordResul
     },
   });
 
-  // In production: send email via nodemailer/SendGrid/etc.
-  console.log(`[AUTH] Password reset token for ${normalizedEmail}: ${token}`);
-  console.log(
-    `[AUTH] Reset link: ${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=${token}`
-  );
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const resetLink = `${appUrl}/reset-password?token=${token}`;
+
+  // Send email via Resend (if configured)
+  const emailSent = await sendEmail({
+    to: normalizedEmail,
+    subject: "Reset your PropertyPro password",
+    html: buildPasswordResetEmail(resetLink),
+  });
+
+  if (emailSent) {
+    console.log(`[AUTH] Password reset email sent to ${normalizedEmail}`);
+  } else {
+    console.log(`[AUTH] RESEND_API_KEY not configured. Reset link: ${resetLink}`);
+  }
 
   return {
     success: true,

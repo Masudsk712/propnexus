@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store";
-import { currentUser } from "@/data/mock";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { NotificationCenter } from "@/components/shared/notification-center";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
@@ -25,6 +25,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 
 export function Navbar() {
+  const { data: session } = useSession();
+  const currentUser = session?.user;
   const { setMobileSidebarOpen, mobileSidebarOpen } = useUIStore();
   const { theme, setTheme } = useTheme();
   const [showProfile, setShowProfile] = useState(false);
@@ -125,13 +127,13 @@ export function Navbar() {
             aria-expanded={showProfile}
           >
             <img
-              src={currentUser.image ?? undefined}
-              alt={currentUser.name}
+              src={currentUser?.image ?? undefined}
+              alt={currentUser?.name ?? "User"}
               className="h-8 w-8 rounded-full object-cover ring-2 ring-border"
             />
             <div className="hidden md:block text-left">
-              <p className="text-sm font-medium leading-none">{currentUser.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{currentUser.role}</p>
+              <p className="text-sm font-medium leading-none">{currentUser?.name ?? "User"}</p>
+              <p className="text-xs text-muted-foreground capitalize">{currentUser?.role ?? "tenant"}</p>
             </div>
             <ChevronDown
               className={cn(
@@ -154,22 +156,22 @@ export function Navbar() {
                 <div className="p-4 border-b border-border bg-muted/30">
                   <div className="flex items-center gap-3">
                     <img
-                      src={currentUser.image ?? undefined}
-                      alt={currentUser.name}
+                      src={currentUser?.image ?? undefined}
+                      alt={currentUser?.name ?? "User"}
                       className="h-10 w-10 rounded-full object-cover ring-2 ring-border"
                     />
                     <div className="min-w-0">
-                      <p className="font-semibold text-sm truncate">{currentUser.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
+                      <p className="font-semibold text-sm truncate">{currentUser?.name ?? "User"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{currentUser?.email ?? ""}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 mt-3">
                     <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary capitalize">
                       <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                      {currentUser.role}
+                      {currentUser?.role ?? "tenant"}
                     </span>
                     <span className="text-[11px] text-muted-foreground">
-                      {currentUser.phone}
+                    {(currentUser as any)?.phone ?? ""}
                     </span>
                   </div>
                 </div>

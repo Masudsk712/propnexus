@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn, signOut } from "next-auth/react";
+import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import { toast } from "sonner";
 import type { UserRole } from "@/types";
 
@@ -39,6 +39,9 @@ export function useAuth() {
   async function login(credentials: LoginCredentials) {
     setIsLoading(true);
     try {
+      // Ensure CSRF token is primed before signIn call
+      await getCsrfToken();
+
       const result = await signIn("credentials", {
         email: credentials.email,
         password: credentials.password,
@@ -46,12 +49,30 @@ export function useAuth() {
       });
 
       if (result?.error) {
-        toast.error("Invalid email or password");
+        // Differentiate between known errors and generic ones
+        if (result.error === "CredentialsSignin" || result.code === "credentials") {
+          toast.error("Invalid email or password");
+        } else {
+          console.error("[LOGIN] signIn error:", result.error, result.code);
+          toast.error(result.error || "Invalid email or password");
+        }
         return { success: false, error: result.error };
+      }
+
+      if (!result?.ok) {
+        console.error("[LOGIN] signIn not ok", result);
+        toast.error("Authentication failed. Please try again.");
+        return { success: false, error: "Authentication failed" };
       }
 
       // Fetch session to get role
       const sessionRes = await fetch("/api/auth/session");
+      if (!sessionRes.ok) {
+        console.error("[LOGIN] Session fetch failed:", sessionRes.status);
+        toast.error("Failed to verify session. Please try again.");
+        return { success: false, error: "Session fetch failed" };
+      }
+
       const session = await sessionRes.json();
       const role: UserRole = session?.user?.role ?? "tenant";
 
@@ -63,7 +84,12 @@ export function useAuth() {
       return { success: true };
     } catch (error) {
       console.error("[LOGIN] Error:", error);
-      toast.error("Something went wrong. Please try again.");
+      // Provide more specific error messages
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        toast.error("Network error. Please check your connection.");
+      } else {
+        toast.error("Something went wrong. Please try again.");
+      }
       return { success: false, error: "Login failed" };
     } finally {
       setIsLoading(false);
@@ -81,11 +107,40 @@ export function useAuth() {
         body: JSON.stringify(credentials),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        console.error("[REGISTER] Failed to parse response:", response.status, response.statusText);
+        toast.error("Server error. Please try again.");
+        return { success: false, error: "Invalid server response" };
+      }
 
       if (!response.ok || !data.success) {
         toast.error(data.error || "Registration failed");
         return { success: false, error: data.error };
+      }
+
+      // Auto-login after successful registration
+      try {
+        await getCsrfToken();
+        const signInResult = await signIn("credentials", {
+          email: credentials.email,
+          password: credentials.password,
+          redirect: false,
+        });
+
+        if (signInResult?.ok) {
+          toast.success("Account created! Welcome aboard.");
+          const role: UserRole = data.data?.role ?? "tenant";
+          const redirectUrl = ROLE_REDIRECTS[role] || "/dashboard/tenant";
+          router.push(redirectUrl);
+          router.refresh();
+          return { success: true };
+        }
+      } catch {
+        // Auto-login failed; redirect to login page
+        console.warn("[REGISTER] Auto-login failed, redirecting to login");
       }
 
       toast.success("Account created! Please log in.");
@@ -94,7 +149,11 @@ export function useAuth() {
       return { success: true };
     } catch (error) {
       console.error("[REGISTER] Error:", error);
-      toast.error("Something went wrong. Please try again.");
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        toast.error("Network error. Please check your connection.");
+      } else {
+        toast.error("Something went wrong. Please try again.");
+      }
       return { success: false, error: "Registration failed" };
     } finally {
       setIsLoading(false);
@@ -129,7 +188,13 @@ export function useAuth() {
         body: JSON.stringify({ email }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        toast.error("Server error. Please try again.");
+        return { success: false, error: "Invalid server response" };
+      }
 
       if (!response.ok || !data.success) {
         toast.error(data.error || "Failed to send reset link");
@@ -158,7 +223,13 @@ export function useAuth() {
         body: JSON.stringify({ token, password }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        toast.error("Server error. Please try again.");
+        return { success: false, error: "Invalid server response" };
+      }
 
       if (!response.ok || !data.success) {
         toast.error(data.error || "Failed to reset password");

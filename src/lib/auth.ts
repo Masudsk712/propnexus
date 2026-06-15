@@ -25,15 +25,40 @@ declare module "next-auth" {
 
 const isProduction = process.env.NODE_ENV === "production";
 
+// Validate required environment variables
+function validateEnv() {
+  if (!process.env.AUTH_SECRET) {
+    throw new Error(
+      "AUTH_SECRET is not defined. Generate one with: openssl rand -base64 32"
+    );
+  }
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not defined");
+  }
+}
+validateEnv();
+
 // Re-export for convenience throughout the app
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 }, // 30 days
   pages: {
     signIn: "/login",
     error: "/login",
   },
   debug: !isProduction,
+  useSecureCookies: isProduction,
+  cookies: {
+    sessionToken: {
+      name: isProduction ? "__Secure-authjs.session-token" : "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: isProduction,
+      },
+    },
+  },
   providers: [
     Credentials({
       name: "credentials",
@@ -43,29 +68,47 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.error("[AUTH] Missing email or password");
           return null;
         }
         const email = String(credentials.email).toLowerCase().trim();
         const password = String(credentials.password);
 
-        const user = await prisma.user.findUnique({ where: { email } });
-
-        if (!user || !user.password) {
+        if (!email.includes("@")) {
+          console.error("[AUTH] Invalid email format");
           return null;
         }
 
-        const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) {
+        try {
+          const user = await prisma.user.findUnique({ where: { email } });
+
+          if (!user) {
+            console.warn(`[AUTH] No user found for: ${email}`);
+            return null;
+          }
+
+          if (!user.password) {
+            console.warn(`[AUTH] User ${email} has no password set (OAuth account?)`);
+            return null;
+          }
+
+          const isValid = await bcrypt.compare(password, user.password);
+          if (!isValid) {
+            console.warn(`[AUTH] Invalid password for: ${email}`);
+            return null;
+          }
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.image,
+            role: user.role,
+          };
+        } catch (error) {
+          console.error("[AUTH] authorize error:", error);
           return null;
         }
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.image,
-          role: user.role,
-        };
       },
     }),
   ],
