@@ -87,10 +87,12 @@ export function useAuth() {
       // Provide more specific error messages
       if (error instanceof TypeError && error.message.includes("fetch")) {
         toast.error("Network error. Please check your connection.");
+      } else if (error instanceof Error) {
+        toast.error(`Login error: ${error.message}`);
       } else {
-        toast.error("Something went wrong. Please try again.");
+        toast.error("Login failed. Check console for details.");
       }
-      return { success: false, error: "Login failed" };
+      return { success: false, error: error instanceof Error ? error.message : "Login failed" };
     } finally {
       setIsLoading(false);
     }

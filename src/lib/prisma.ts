@@ -11,18 +11,32 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient(): PrismaClient {
   const isDev = process.env.NODE_ENV === "development";
+  const dbUrl = process.env.DATABASE_URL;
+
+  // Log connection state early — can't log too much, but critical info is useful
+  if (!dbUrl) {
+    console.error("[PRISMA] CRITICAL: DATABASE_URL is not set when creating PrismaClient!");
+  } else {
+    const maskedUrl = dbUrl.replace(/\/\/[^@]+@/, "//***:***@").replace(/\/[^?]+/, "/******");
+    console.log(`[PRISMA] Creating PrismaClient with DATABASE_URL: ${maskedUrl}`);
+  }
 
   const client = new PrismaClient({
-    log: isDev ? ["warn", "error"] : ["error"],
+    log: ["warn", "error"], // Always log warnings and errors, even in production
     datasources: {
       db: {
-        url: process.env.DATABASE_URL,
+        url: dbUrl,
       },
     },
-    // Connection pool configuration
-    // Prisma uses @prisma/client connection pool defaults which optimize for serverless
-    // MongoDB connection pool is managed by the driver internally
   });
+
+  // Immediate connection test (non-blocking — logs result)
+  client.$runCommandRaw({ ping: 1 })
+    .then(() => console.log("[PRISMA] MongoDB connection ping SUCCESSFUL"))
+    .catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[PRISMA] MongoDB connection ping FAILED: ${msg}`);
+    });
 
   // Graceful shutdown hooks (Node.js only — skip in Edge Runtime)
   if (typeof window === "undefined" && typeof process !== "undefined" && process.once) {

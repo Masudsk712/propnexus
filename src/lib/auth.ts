@@ -6,6 +6,7 @@
 import NextAuth from "next-auth";
 import type { DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { CredentialsSignin } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
@@ -24,6 +25,30 @@ declare module "next-auth" {
 }
 
 const isProduction = process.env.NODE_ENV === "production";
+
+/**
+ * Structured auth logger — writes to both console and a log array
+ * so debug endpoint can return recent history.
+ */
+const authLogs: Array<{ level: string; message: string; time: string }> = [];
+const MAX_LOGS = 200;
+
+function authLog(level: "info" | "warn" | "error", message: string, meta?: unknown) {
+  const entry = { level, message, time: new Date().toISOString() };
+  authLogs.push(entry);
+  if (authLogs.length > MAX_LOGS) authLogs.shift();
+
+  const prefix = `[AUTH]`;
+  if (level === "error") {
+    console.error(prefix, message, meta ?? "");
+  } else if (level === "warn") {
+    console.warn(prefix, message, meta ?? "");
+  } else {
+    console.log(prefix, message, meta ?? "");
+  }
+}
+
+export { authLogs, authLog };
 
 // Validate required environment variables
 function validateEnv() {
@@ -46,7 +71,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/login",
     error: "/login",
   },
-  debug: !isProduction,
+  debug: true, // Always enable debug — logs to console on Vercel
   useSecureCookies: isProduction,
   cookies: {
     sessionToken: {
@@ -67,48 +92,81 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        // ── 1. Validate input ──────────────────────────────────────────────
         if (!credentials?.email || !credentials?.password) {
-          console.error("[AUTH] Missing email or password");
-          return null;
+          const msg = "[AUTH] Missing email or password in authorize()";
+          authLog("warn", msg);
+          throw new CredentialsSignin(msg);
         }
+
         const email = String(credentials.email).toLowerCase().trim();
         const password = String(credentials.password);
 
+        authLog("info", `authorize() called for email="${email}"`);
+
         if (!email.includes("@")) {
-          console.error("[AUTH] Invalid email format");
-          return null;
+          const msg = `[AUTH] Invalid email format: "${email}"`;
+          authLog("warn", msg);
+          throw new CredentialsSignin(msg);
         }
 
+        // ── 2. Verify DATABASE_URL is set ─────────────────────────────────
+        if (!process.env.DATABASE_URL) {
+          const msg = "[AUTH] DATABASE_URL is not defined in environment";
+          authLog("error", msg);
+          throw new CredentialsSignin(msg);
+        }
+        authLog("info", "DATABASE_URL is present");
+
+        // ── 3. Look up user ────────────────────────────────────────────────
+        let user;
         try {
-          const user = await prisma.user.findUnique({ where: { email } });
-
-          if (!user) {
-            console.warn(`[AUTH] No user found for: ${email}`);
-            return null;
-          }
-
-          if (!user.password) {
-            console.warn(`[AUTH] User ${email} has no password set (OAuth account?)`);
-            return null;
-          }
-
-          const isValid = await bcrypt.compare(password, user.password);
-          if (!isValid) {
-            console.warn(`[AUTH] Invalid password for: ${email}`);
-            return null;
-          }
-
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            image: user.image,
-            role: user.role,
-          };
-        } catch (error) {
-          console.error("[AUTH] authorize error:", error);
-          return null;
+          user = await prisma.user.findUnique({ where: { email } });
+          authLog("info", `User lookup for "${email}": ${user ? "FOUND" : "NOT FOUND"}`);
+        } catch (dbError) {
+          const msg = `[AUTH] Prisma user lookup FAILED for "${email}": ${dbError instanceof Error ? dbError.message : String(dbError)}`;
+          authLog("error", msg, dbError);
+          throw new CredentialsSignin(msg);
         }
+
+        if (!user) {
+          const msg = `[AUTH] No user found for email: "${email}"`;
+          authLog("warn", msg);
+          throw new CredentialsSignin(msg);
+        }
+
+        if (!user.password) {
+          const msg = `[AUTH] User "${email}" has no password set (OAuth account?)`;
+          authLog("warn", msg);
+          throw new CredentialsSignin(msg);
+        }
+
+        // ── 4. Compare password ────────────────────────────────────────────
+        let isValid: boolean;
+        try {
+          isValid = await bcrypt.compare(password, user.password);
+          authLog("info", `bcrypt.compare result for "${email}": ${isValid ? "MATCH" : "MISMATCH"}`);
+        } catch (bcryptError) {
+          const msg = `[AUTH] bcrypt.compare threw for "${email}": ${bcryptError instanceof Error ? bcryptError.message : String(bcryptError)}`;
+          authLog("error", msg, bcryptError);
+          throw new CredentialsSignin(msg);
+        }
+
+        if (!isValid) {
+          const msg = `[AUTH] Invalid password for "${email}"`;
+          authLog("warn", msg);
+          throw new CredentialsSignin(msg);
+        }
+
+        // ── 5. Success — return user ───────────────────────────────────────
+        authLog("info", `Authorization SUCCESS for "${email}" (role: ${user.role})`);
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+          role: user.role,
+        };
       },
     }),
   ],
@@ -116,10 +174,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id as string;
+        token.sub = user.id as string; // ← CRITICAL: set sub for NextAuth internals
         token.role = (user as any).role ?? "tenant";
+        authLog("info", `JWT created for user "${user.email}" id="${user.id}" role="${token.role}"`);
       }
       if (trigger === "update" && session) {
         token.role = (session as any).role ?? token.role;
+        authLog("info", `JWT updated — role="${token.role}"`);
       }
       return token;
     },
@@ -127,6 +188,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         (session.user as any).role = token.role ?? "tenant";
+        authLog("info", `Session created for userId="${session.user.id}" role="${(session.user as any).role}"`);
       }
       return session;
     },
