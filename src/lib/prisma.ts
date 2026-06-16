@@ -10,6 +10,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClient {
+  const initStart = Date.now();
   const isDev = process.env.NODE_ENV === "development";
   const dbUrl = process.env.DATABASE_URL;
 
@@ -19,15 +20,39 @@ function createPrismaClient(): PrismaClient {
   } else {
     const maskedUrl = dbUrl.replace(/\/\/[^@]+@/, "//***:***@").replace(/\/[^?]+/, "/******");
     console.log(`[PRISMA] Creating PrismaClient with DATABASE_URL: ${maskedUrl}`);
+
+    // Log just the hostname for quick verification
+    try {
+      const hostnameMatch = dbUrl.match(/@([^/]+)/);
+      if (hostnameMatch) {
+        console.log(`[PRISMA] Database hostname: ${hostnameMatch[1]}`);
+      }
+      // Log the full DATABASE_URL for Vercel env var comparison (replaces credentials)
+      console.log(`[PRISMA] DATABASE_URL (masked for comparison): ${maskedUrl}`);
+      console.log(`[PRISMA] DATABASE_URL used by Prisma: ${dbUrl.startsWith("mongodb") ? "starts with mongodb:// or mongodb+srv:// ✓" : "INVALID PREFIX ✗"}`);
+    } catch (e) {
+      // ignore parse errors
+    }
   }
 
   const client = new PrismaClient({
-    log: ["warn", "error"], // Always log warnings and errors, even in production
+    log: ["warn", "error", { emit: "stdout", level: "query" }],
     datasources: {
       db: {
         url: dbUrl,
       },
     },
+  });
+
+  // Query timeout logging middleware — logs any query taking > 5 seconds
+  client.$use(async (params, next) => {
+    const start = Date.now();
+    const result = await next(params);
+    const duration = Date.now() - start;
+    if (duration > 5000) {
+      console.warn(`[PRISMA] SLOW QUERY (${duration}ms): model=${params.model}, action=${params.args?.where ? "with-where" : "no-where"}`);
+    }
+    return result;
   });
 
   // Immediate connection test (non-blocking — logs result)
@@ -48,6 +73,10 @@ function createPrismaClient(): PrismaClient {
     process.once("SIGTERM", handleShutdown);
     process.once("beforeExit", handleShutdown);
   }
+
+  const initDuration = Date.now() - initStart;
+  console.log(`[PRISMA] Client initialized in ${initDuration}ms`);
+  console.log("[PRISMA] INIT OK — PrismaClient constructor did not hang (synchronous)");
 
   return client;
 }
