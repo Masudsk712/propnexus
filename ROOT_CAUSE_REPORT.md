@@ -103,7 +103,74 @@ The route file exists at `src/app/api/debug/auth/route.ts` but likely not deploy
 
 ---
 
-## 4. Verification Steps (After Deploy)
+## 4. MIDDLEWARE_CRASH — Incident 2026-06-17
+
+### Error
+```
+500 INTERNAL_SERVER_ERROR
+MIDDLEWARE_INVOCATION_FAILED
+```
+
+### Exact Failing Chain (Original Code)
+
+| Step | File | Line | What Happens |
+|------|------|------|-------------|
+| 1 | `src/middleware.ts` | **6** | `import { auth } from "@/lib/auth"` — triggers module evaluation |
+| 2 | `src/lib/auth.ts` | **10** | `import { PrismaAdapter } from "@auth/prisma-adapter"` — imports Node-only module |
+| 3 | `src/lib/auth.ts` | **11** | `import bcrypt from "bcryptjs"` — uses Node.js `crypto` module, NOT available in Edge Runtime |
+| 4 | `src/lib/auth.ts` | **12** | `import prisma from "@/lib/prisma"` — executes module-level code |
+| 5 | `src/lib/prisma.ts` | **38** | `new PrismaClient({...})` — creates MongoDB TCP connection, blocked in Edge Runtime |
+| 6 | `src/lib/prisma.ts` | **72-74** | `process.once("SIGINT", ...)` — `process.once` is not available in Edge Runtime |
+| 7 | `src/lib/auth.ts` | **64** | `validateEnv()` — reads `process.env.AUTH_SECRET` which is fine, but never reached |
+
+**Root Cause:** The middleware file (`src/middleware.ts`) imported `auth` from `@/lib/auth`, which at **module evaluation time** (not just when `auth()` is called) pulls in:
+- `@auth/prisma-adapter` (Prisma adapter — depends on `@prisma/client`)
+- `bcryptjs` (depends on Node.js `crypto` — crashes Edge Runtime)
+- `@/lib/prisma` (creates `PrismaClient` instance and calls `process.once`)
+
+**Next.js Edge Runtime** does not support:
+- Node.js `net` / `tcp` sockets (required by Prisma/MongoDB driver)
+- `process.once` / `process.on` listeners
+- `crypto` module (used by `bcryptjs`)
+
+Even though `auth()` with JWT strategy **does not need Prisma at runtime** (it just decodes the JWT from the cookie), the **module-level side effects** in the import chain crash the middleware before `auth()` is ever called.
+
+### Fix Applied
+
+**Replaced:**
+```ts
+import { auth } from "@/lib/auth";
+...
+const session = await auth();
+```
+
+**With:**
+```ts
+import { getToken } from "next-auth/jwt";
+...
+const token = await getToken({
+  req: request,
+  secret: process.env.AUTH_SECRET,
+});
+```
+
+`getToken()` from `next-auth/jwt`:
+- Uses **only Web Crypto API** (Edge-compatible)
+- Requires **no Prisma, no bcrypt, no database calls**
+- Reads the JWT directly from the `authjs.session-token` cookie
+- Zero module-level side effects — no Network calls, no `process.once`
+
+### Crash Guard Added
+The entire middleware handler is wrapped in `try/catch`. On any unhandled error:
+1. The exact error is logged to `console.error`
+2. The error stack trace is serialized
+3. A safe fallback `NextResponse.next()` with security headers is returned
+
+This ensures that even if `getToken()` or any other code path throws unexpectedly, the user's request is never dropped with a 500.
+
+---
+
+## 5. Verification Steps (After Deploy)
 
 1. **Hit `GET /api/debug/ping`** — confirms env loading, `DATABASE_URL` existence
 2. **Check Vercel Function Logs** — look for:
@@ -113,10 +180,11 @@ The route file exists at `src/app/api/debug/auth/route.ts` but likely not deploy
    - `[PRISMA] Client initialized in Xms` (init performance)
 3. **Hit `GET /api/debug/db`** — if ping succeeds but this times out, it's a query-specific issue (permissions, collection access)
 4. **Compare masked DATABASE_URL** with Vercel project environment variable to ensure they match
+5. **Verify middleware crash is resolved** — browse protected routes; any remaining middleware error will be logged with `[MIDDLEWARE_CRASH]` prefix and won't drop requests
 
 ---
 
-## 5. Quick Fix Options
+## 6. Quick Fix Options
 
 | Option | Description | Effort |
 |--------|-------------|--------|
