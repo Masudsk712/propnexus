@@ -65,6 +65,8 @@ export function useAuth() {
         return { success: false, error: "Authentication failed" };
       }
 
+      console.log("[LOGIN_SUCCESS] signIn result:", JSON.stringify({ ok: result.ok, status: result.status, url: result.url }));
+
       // Fetch session to get role
       const sessionRes = await fetch("/api/auth/session");
       if (!sessionRes.ok) {

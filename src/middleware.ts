@@ -122,9 +122,14 @@ export default async function middleware(request: NextRequest) {
     const token = await getToken({
       req: request,
       secret: process.env.AUTH_SECRET,
+      cookieName: IS_PRODUCTION
+        ? "__Secure-authjs.session-token"
+        : "authjs.session-token",
     });
     const isLoggedIn = !!token;
     const userRole = token?.role as string | undefined;
+
+    console.log("[MIDDLEWARE_TOKEN] pathname:", pathname, "isLoggedIn:", isLoggedIn, "cookieName:", IS_PRODUCTION ? "__Secure-authjs.session-token" : "authjs.session-token", "token:", token ? JSON.stringify({ sub: token.sub, role: token.role, id: token.id, email: token.email }) : "null");
 
     let response: NextResponse;
 

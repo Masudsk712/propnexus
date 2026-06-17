@@ -176,10 +176,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id as string;
         token.sub = user.id as string; // ← CRITICAL: set sub for NextAuth internals
         token.role = (user as any).role ?? "tenant";
+        console.log("[JWT_CALLBACK] user set:", JSON.stringify({ sub: token.sub, id: token.id, role: token.role, email: user.email }));
         authLog("info", `JWT created for user "${user.email}" id="${user.id}" role="${token.role}"`);
       }
       if (trigger === "update" && session) {
         token.role = (session as any).role ?? token.role;
+        console.log("[JWT_CALLBACK] update:", JSON.stringify({ role: token.role }));
         authLog("info", `JWT updated — role="${token.role}"`);
       }
       return token;
@@ -188,6 +190,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         (session.user as any).role = token.role ?? "tenant";
+        console.log("[SESSION_CALLBACK] session populated:", JSON.stringify({ userId: session.user.id, role: (session.user as any).role, tokenSub: token.sub, tokenId: token.id }));
         authLog("info", `Session created for userId="${session.user.id}" role="${(session.user as any).role}"`);
       }
       return session;
