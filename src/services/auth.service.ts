@@ -7,6 +7,7 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 import { sendEmail, buildPasswordResetEmail } from "@/lib/email";
+import { logger } from "@/lib/logger";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -138,9 +139,9 @@ export async function forgotPassword(email: string): Promise<ForgotPasswordResul
   });
 
   if (emailSent) {
-    console.log(`[AUTH] Password reset email sent to ${normalizedEmail}`);
+    logger.info("Password reset email sent", { context: { email: normalizedEmail } });
   } else {
-    console.log(`[AUTH] RESEND_API_KEY not configured. Reset link: ${resetLink}`);
+    logger.warn("RESEND_API_KEY not configured — email not sent", { context: { email: normalizedEmail } });
   }
 
   return {

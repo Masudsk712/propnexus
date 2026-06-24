@@ -22,13 +22,19 @@
     "vercel-build": "prisma generate && next build",
     "deploy:preview": "vercel",
     "deploy:prod": "vercel --prod",
-    "health": "curl -s http://localhost:3000/api/health | npx json"
+    "health": "curl -s http://localhost:3000/api/health | npx json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ci": "vitest run --coverage --reporter=verbose",
+    "smoke": "node smoke-test.cjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
     "@hookform/resolvers": "^5.2.1",
     "@prisma/client": "^5.22.0",
     "@sentry/nextjs": "^10.57.0",
+    "@stripe/stripe-js": "^9.8.0",
     "@tanstack/react-query": "^5.85.1",
     "@types/bcryptjs": "^2.4.6",
     "@upstash/ratelimit": "^2.0.8",
@@ -56,6 +62,7 @@
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "sonner": "^2.0.7",
+    "stripe": "^22.2.1",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
     "uuid": "^14.0.0",
@@ -68,8 +75,10 @@
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",
     "@types/uuid": "^10.0.0",
+    "@vitest/coverage-v8": "^4.1.9",
     "prisma": "^5.22.0",
     "tsx": "^4.22.3",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.9"
   }
 }

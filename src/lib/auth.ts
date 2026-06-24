@@ -5,11 +5,14 @@
 
 import NextAuth from "next-auth";
 import type { DefaultSession } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
 import { CredentialsSignin } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
+
+import { setSentryUser, clearSentryUser } from "@/lib/sentry";
 
 // Extend the built-in session types to include role
 declare module "next-auth" {
@@ -71,7 +74,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/login",
     error: "/login",
   },
-  debug: true, // Always enable debug — logs to console on Vercel
+  debug: process.env.NODE_ENV !== "production",
+  events: {
+    async signOut(message) {
+      const token = (message as any).token as JWT | undefined;
+      if (token?.sub) {
+        clearSentryUser();
+        authLog("info", "User signed out, Sentry context cleared");
+      }
+    },
+  },
   useSecureCookies: isProduction,
   cookies: {
     sessionToken: {
@@ -102,12 +114,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = String(credentials.email).toLowerCase().trim();
         const password = String(credentials.password);
 
-        authLog("info", `authorize() called for email="${email}"`);
+        authLog("info", "authorize() called");
 
         if (!email.includes("@")) {
-          const msg = `[AUTH] Invalid email format: "${email}"`;
-          authLog("warn", msg);
-          throw new CredentialsSignin(msg);
+          authLog("warn", "[AUTH] Invalid email format");
+          throw new CredentialsSignin("[AUTH] Invalid email format");
         }
 
         // ── 2. Verify DATABASE_URL is set ─────────────────────────────────
@@ -122,44 +133,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         let user;
         try {
           user = await prisma.user.findUnique({ where: { email } });
-          authLog("info", `User lookup for "${email}": ${user ? "FOUND" : "NOT FOUND"}`);
+          authLog("info", `User lookup: ${user ? "FOUND" : "NOT FOUND"}`);
         } catch (dbError) {
-          const msg = `[AUTH] Prisma user lookup FAILED for "${email}": ${dbError instanceof Error ? dbError.message : String(dbError)}`;
+          const msg = `[AUTH] Prisma user lookup FAILED: ${dbError instanceof Error ? dbError.message : String(dbError)}`;
           authLog("error", msg, dbError);
           throw new CredentialsSignin(msg);
         }
 
         if (!user) {
-          const msg = `[AUTH] No user found for email: "${email}"`;
-          authLog("warn", msg);
-          throw new CredentialsSignin(msg);
+          authLog("warn", "[AUTH] No user found for email");
+          throw new CredentialsSignin("[AUTH] No user found for email");
         }
 
         if (!user.password) {
-          const msg = `[AUTH] User "${email}" has no password set (OAuth account?)`;
-          authLog("warn", msg);
-          throw new CredentialsSignin(msg);
+          authLog("warn", "[AUTH] User has no password set (OAuth account?)");
+          throw new CredentialsSignin("[AUTH] User has no password set");
         }
 
         // ── 4. Compare password ────────────────────────────────────────────
         let isValid: boolean;
         try {
           isValid = await bcrypt.compare(password, user.password);
-          authLog("info", `bcrypt.compare result for "${email}": ${isValid ? "MATCH" : "MISMATCH"}`);
+          authLog("info", `bcrypt.compare: ${isValid ? "MATCH" : "MISMATCH"}`);
         } catch (bcryptError) {
-          const msg = `[AUTH] bcrypt.compare threw for "${email}": ${bcryptError instanceof Error ? bcryptError.message : String(bcryptError)}`;
+          const msg = `[AUTH] bcrypt.compare threw: ${bcryptError instanceof Error ? bcryptError.message : String(bcryptError)}`;
           authLog("error", msg, bcryptError);
           throw new CredentialsSignin(msg);
         }
 
         if (!isValid) {
-          const msg = `[AUTH] Invalid password for "${email}"`;
-          authLog("warn", msg);
-          throw new CredentialsSignin(msg);
+          authLog("warn", "[AUTH] Invalid password");
+          throw new CredentialsSignin("[AUTH] Invalid password");
         }
 
         // ── 5. Success — return user ───────────────────────────────────────
-        authLog("info", `Authorization SUCCESS for "${email}" (role: ${user.role})`);
+        authLog("info", `Authorization SUCCESS (role: ${user.role})`);
         return {
           id: user.id,
           name: user.name,
@@ -174,14 +182,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id as string;
-        token.sub = user.id as string; // ← CRITICAL: set sub for NextAuth internals
+        token.sub = user.id as string;
         token.role = (user as any).role ?? "tenant";
-        console.log("[JWT_CALLBACK] user set:", JSON.stringify({ sub: token.sub, id: token.id, role: token.role, email: user.email }));
-        authLog("info", `JWT created for user "${user.email}" id="${user.id}" role="${token.role}"`);
+        // Set Sentry user context on login
+        setSentryUser({
+          id: user.id as string,
+          email: user.email ?? undefined,
+          role: (user as any).role ?? "tenant",
+        });
+        authLog("info", `JWT created for user id="${user.id}" role="${token.role}"`);
       }
       if (trigger === "update" && session) {
         token.role = (session as any).role ?? token.role;
-        console.log("[JWT_CALLBACK] update:", JSON.stringify({ role: token.role }));
         authLog("info", `JWT updated — role="${token.role}"`);
       }
       return token;
@@ -190,7 +202,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         (session.user as any).role = token.role ?? "tenant";
-        console.log("[SESSION_CALLBACK] session populated:", JSON.stringify({ userId: session.user.id, role: (session.user as any).role, tokenSub: token.sub, tokenId: token.id }));
         authLog("info", `Session created for userId="${session.user.id}" role="${(session.user as any).role}"`);
       }
       return session;

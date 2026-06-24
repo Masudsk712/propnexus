@@ -8,9 +8,34 @@ import bcrypt from "bcryptjs";
 import { signUpSchema } from "@/validations";
 import { successResponse, errorResponse } from "@/lib/auth-helpers";
 import { NextResponse } from "next/server";
+import { rateLimit, getRateLimitKey } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting: 3 registrations per minute per IP
+    const key = getRateLimitKey(req);
+    const { success, remaining, resetTime } = await rateLimit(key, {
+      interval: 60_000,
+      maxRequests: 3,
+    });
+
+    if (!success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Too many registration attempts. Please try again later.",
+          retryAfter: Math.ceil((resetTime - Date.now()) / 1000),
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil((resetTime - Date.now()) / 1000)),
+            "X-RateLimit-Remaining": String(remaining),
+          },
+        }
+      );
+    }
+
     const body = await req.json();
     const parsed = signUpSchema.safeParse(body);
 

@@ -1,0 +1,135 @@
+# ============================================================================
+# CI/CD Validation Workflow — Run on every PR & push to main
+# Ensures code quality, type safety, and builds before deployment
+# ============================================================================
+
+name: CI/CD Validation
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: "20"
+  DATABASE_URL: "mongodb://localhost:27017/test"
+
+jobs:
+  # ── Validation: TypeScript type checking + linting ──────────────────────
+  validate:
+    name: TypeScript Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: TypeScript type check
+        run: npm run typecheck
+
+      - name: Lint check
+        run: npm run lint
+
+  # ── Build: Verify production build succeeds ────────────────────────────
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [validate]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build project
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SENTRY_DSN: ""
+          NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+          AUTH_SECRET: "test-secret-that-is-long-enough-for-validation-only"
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+  # ── Smoke Tests: Verify critical endpoints respond ────────────────────
+  smoke-test:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run smoke tests
+        run: node smoke-test.cjs
+        env:
+          NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+          AUTH_SECRET: "test-secret-that-is-long-enough-for-validation-only"
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+  # ── Security: Basic security scanning ─────────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [validate]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate || true
+
+      - name: Check for secrets in code
+        run: |
+          echo "Checking for potential secrets in code..."
+          ! grep -r "sk_live_" src/ --include="*.ts" --include="*.tsx" --include="*.js" 2>/dev/null && echo "No Stripe live keys found" || echo "WARNING: Stripe live keys found in source!"
+          ! grep -r "AKIA" src/ --include="*.ts" --include="*.tsx" --include="*.js" 2>/dev/null && echo "No AWS keys found" || echo "WARNING: AWS keys found in source!"

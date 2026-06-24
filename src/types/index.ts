@@ -165,8 +165,59 @@ export interface Payment {
   dueDate?: Date | null;
   paidAt?: Date | null;
   description?: string | null;
+  stripeSessionId?: string | null;
+  stripePaymentIntentId?: string | null;
+  receiptUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// ── Invoices ──────────────────────────────────────────────────────────────
+export type InvoiceStatus = "pending" | "paid" | "past_due" | "cancelled";
+
+export interface Invoice {
+  id: string;
+  tenantId: string;
+  propertyId: string;
+  userId: string;
+  amount: number;
+  dueDate: Date;
+  status: InvoiceStatus;
+  periodStart: Date;
+  periodEnd: Date;
+  description?: string | null;
+  paidAt?: Date | null;
+  paymentId?: string | null;
+  stripeSessionId?: string | null;
+  receiptUrl?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  tenant?: Tenant;
+  property?: Property;
+  user?: User;
+  payment?: Payment;
+}
+
+export interface PaymentTransaction {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  status: PaymentStatus;
+  method: PaymentMethod;
+  stripePaymentIntentId?: string | null;
+  receiptUrl?: string | null;
+  paidAt?: Date | null;
+  createdAt: Date;
+  invoice?: Invoice;
+}
+
+export interface Receipt {
+  id: string;
+  paymentId: string;
+  invoiceId: string;
+  receiptUrl: string;
+  amount: number;
+  paidAt: Date;
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────

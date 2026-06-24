@@ -13,6 +13,7 @@ import type {
   Amenity,
   Booking,
   Payment,
+  Invoice,
   Notification,
   ActivityLog,
   DashboardStats,
@@ -142,6 +143,21 @@ export function useNotifications() {
   return useQuery({
     queryKey: ["notifications"],
     queryFn: () => fetcher<Notification[]>("/api/notifications"),
+  });
+}
+
+// ── Invoices / Rent Collection ────────────────────────────────────────────
+export function useTenantInvoices() {
+  return useQuery({
+    queryKey: ["rent-invoices"],
+    queryFn: () => fetcher<Invoice[]>("/api/rent/invoices"),
+  });
+}
+
+export function usePaymentHistory() {
+  return useQuery({
+    queryKey: ["rent-payments"],
+    queryFn: () => fetcher<Payment[]>("/api/rent/payments"),
   });
 }
 

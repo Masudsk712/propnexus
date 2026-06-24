@@ -7,6 +7,8 @@ import { auth } from "@/lib/auth";
 import { unauthorizedResponse, forbiddenResponse, successResponse, errorResponse } from "@/lib/auth-helpers";
 import { createTenantSchema } from "@/validations";
 import { tenantService } from "@/services";
+import { checkResourceLimit } from "@/services/subscription.service";
+import prisma from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -27,6 +29,23 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const role = (session.user as any).role;
   if (role !== "admin" && role !== "manager") return forbiddenResponse();
+
+  // Subscription enforcement: check tenant limit
+  const tenantCount = await prisma.tenant.count();
+  const limitCheck = await checkResourceLimit(
+    session.user.id,
+    "tenants",
+    tenantCount
+  );
+  if (!limitCheck.allowed) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Your ${limitCheck.tier} plan is limited to ${limitCheck.limit} tenants. Please upgrade to create more.`,
+      },
+      { status: 403 }
+    );
+  }
 
   try {
     const body = await req.json();

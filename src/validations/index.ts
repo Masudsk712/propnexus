@@ -13,7 +13,13 @@ const dateLike = z.union([z.string(), z.date()]).transform((v) => new Date(v));
 export const signUpSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
   email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+      "Password must contain uppercase, lowercase, number, and special character (@$!%*?&)"
+    ),
   phone: z.string().optional(),
 });
 
@@ -152,6 +158,21 @@ export const createPaymentSchema = z.object({
 });
 
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+
+// ── Invoices ──────────────────────────────────────────────────────────────
+export const createInvoiceSchema = z.object({
+  tenantId: z.string().min(1),
+  propertyId: z.string().min(1),
+  userId: z.string().min(1),
+  amount: z.number().min(0, "Amount must be positive"),
+  dueDate: dateLike,
+  periodStart: dateLike,
+  periodEnd: dateLike,
+  description: z.string().optional(),
+  status: z.enum(["pending", "paid", "past_due", "cancelled"]).default("pending"),
+});
+
+export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
 
 // ── Notifications ─────────────────────────────────────────────────────────
 export const createNotificationSchema = z.object({

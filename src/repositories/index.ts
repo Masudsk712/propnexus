@@ -12,6 +12,7 @@ import type {
   CreateAmenityInput,
   CreateBookingInput,
   CreatePaymentInput,
+  CreateInvoiceInput,
   CreateNotificationInput,
   CreateActivityLogInput,
 } from "@/validations";
@@ -379,7 +380,8 @@ export const paymentRepo = {
     const { page = 1, limit = 20 } = pagination ?? {};
     const select = {
       id: true, amount: true, type: true, status: true, method: true,
-      dueDate: true, paidAt: true, createdAt: true,
+      dueDate: true, paidAt: true, createdAt: true, stripeSessionId: true,
+      stripePaymentIntentId: true, receiptUrl: true,
       tenant: { select: { id: true, unit: true } },
       property: { select: { id: true, name: true } },
       user: { select: { id: true, name: true } },
@@ -406,12 +408,192 @@ export const paymentRepo = {
     });
   },
 
+  findByStripeSession(sessionId: string) {
+    return prisma.payment.findFirst({ where: { stripeSessionId: sessionId } });
+  },
+
   create(input: CreatePaymentInput) {
     return prisma.payment.create({ data: input as any });
   },
 
   update(id: string, data: Partial<CreatePaymentInput>) {
     return prisma.payment.update({ where: { id }, data: data as any });
+  },
+
+  /** Get all payments for a specific user (as tenant) */
+  findByUser(userId: string) {
+    return prisma.payment.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        property: { select: { id: true, name: true } },
+        tenant: { select: { id: true, unit: true } },
+      },
+    });
+  },
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Invoices (Rent Collection)
+// ────────────────────────────────────────────────────────────────────────────
+export const invoiceRepo = {
+  async findAll(pagination?: Pagination) {
+    const { page = 1, limit = 20 } = pagination ?? {};
+    const select = {
+      id: true, amount: true, dueDate: true, status: true,
+      periodStart: true, periodEnd: true, description: true,
+      paidAt: true, stripeSessionId: true, receiptUrl: true,
+      createdAt: true, updatedAt: true,
+      tenant: { select: { id: true, unit: true } },
+      property: { select: { id: true, name: true } },
+      user: { select: { id: true, name: true } },
+    } as const;
+    const query = () =>
+      prisma.invoice.findMany({
+        select,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      });
+    const count = () => prisma.invoice.count();
+    return paginate(query, count, { page, limit });
+  },
+
+  findById(id: string) {
+    return prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        tenant: { select: { id: true, unit: true, userId: true } },
+        property: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, email: true } },
+        payment: true,
+      },
+    });
+  },
+
+  /** Get invoices scoped to a specific tenant (user-level security) */
+  findByTenantId(tenantId: string) {
+    return prisma.invoice.findMany({
+      where: { tenantId },
+      orderBy: { dueDate: "desc" },
+      include: {
+        property: { select: { id: true, name: true } },
+        payment: { select: { id: true, status: true, receiptUrl: true, paidAt: true } },
+      },
+    });
+  },
+
+  /** Get invoices scoped to a specific user */
+  findByUserId(userId: string) {
+    return prisma.invoice.findMany({
+      where: { userId },
+      orderBy: { dueDate: "desc" },
+      include: {
+        property: { select: { id: true, name: true } },
+        tenant: { select: { id: true, unit: true } },
+        payment: { select: { id: true, status: true, receiptUrl: true, paidAt: true } },
+      },
+    });
+  },
+
+  /** Get active (unpaid) invoices for a user */
+  findActiveByUserId(userId: string) {
+    return prisma.invoice.findMany({
+      where: { userId, status: { in: ["pending", "past_due"] } },
+      orderBy: { dueDate: "asc" },
+      include: {
+        property: { select: { id: true, name: true } },
+        tenant: { select: { id: true, unit: true } },
+      },
+    });
+  },
+
+  /** Get the current pending invoice for a tenant */
+  findCurrentForTenant(tenantId: string) {
+    return prisma.invoice.findFirst({
+      where: { tenantId, status: { in: ["pending", "past_due"] } },
+      orderBy: { dueDate: "asc" },
+      include: {
+        property: { select: { id: true, name: true, address: true } },
+      },
+    });
+  },
+
+  create(input: CreateInvoiceInput) {
+    return prisma.invoice.create({ data: input as any });
+  },
+
+  update(id: string, data: Partial<CreateInvoiceInput & { status: string; paidAt?: Date; paymentId?: string; stripeSessionId?: string; receiptUrl?: string }>) {
+    return prisma.invoice.update({ where: { id }, data: data as any });
+  },
+
+  /** Mark invoice as paid and link to payment */
+  async markPaid(id: string, paymentId: string, paidAt: Date, receiptUrl?: string) {
+    return prisma.invoice.update({
+      where: { id },
+      data: {
+        status: "paid",
+        paidAt,
+        paymentId,
+        receiptUrl,
+      },
+    });
+  },
+
+  /** Aggregate rent collected (completed rent payments) */
+  async totalCollected() {
+    const result = await prisma.payment.aggregate({
+      where: { type: "rent", status: "completed" },
+      _sum: { amount: true },
+    });
+    return result._sum.amount ?? 0;
+  },
+
+  /** Aggregate pending rent (unpaid invoices) */
+  async totalPending() {
+    const result = await prisma.invoice.aggregate({
+      where: { status: { in: ["pending", "past_due"] } },
+      _sum: { amount: true },
+    });
+    return result._sum.amount ?? 0;
+  },
+
+  /** Property-wise collection summary */
+  async collectionsByProperty() {
+    const completed = await prisma.payment.groupBy({
+      by: ["propertyId"],
+      where: { type: "rent", status: "completed" },
+      _sum: { amount: true },
+      _count: true,
+    });
+
+    const properties = await prisma.property.findMany({
+      select: { id: true, name: true },
+    });
+
+    const propertyMap = new Map(properties.map(p => [p.id, p.name]));
+
+    return completed.map(c => ({
+      propertyId: c.propertyId,
+      propertyName: propertyMap.get(c.propertyId) ?? "Unknown",
+      collected: c._sum.amount ?? 0,
+      transactionCount: c._count,
+    }));
+  },
+
+  /** Monthly revenue from rent collections */
+  async monthlyRevenue() {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const result = await prisma.payment.aggregate({
+      where: {
+        type: "rent",
+        status: "completed",
+        paidAt: { gte: startOfMonth },
+      },
+      _sum: { amount: true },
+    });
+    return result._sum.amount ?? 0;
   },
 };
 

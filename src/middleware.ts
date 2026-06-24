@@ -129,7 +129,10 @@ export default async function middleware(request: NextRequest) {
     const isLoggedIn = !!token;
     const userRole = token?.role as string | undefined;
 
-    console.log("[MIDDLEWARE_TOKEN] pathname:", pathname, "isLoggedIn:", isLoggedIn, "cookieName:", IS_PRODUCTION ? "__Secure-authjs.session-token" : "authjs.session-token", "token:", token ? JSON.stringify({ sub: token.sub, role: token.role, id: token.id, email: token.email }) : "null");
+    // Safe auth log — no PII emitted
+    if (isLoggedIn) {
+      console.log("[MIDDLEWARE] pathname:", pathname, "authenticated:", isLoggedIn);
+    }
 
     let response: NextResponse;
 

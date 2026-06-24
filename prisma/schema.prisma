@@ -24,6 +24,14 @@ model User {
   image         String?
   phone         String?
   role          String    @default("tenant") // admin | manager | tenant
+
+  // Subscription fields
+  subscriptionTier             String?   @default("FREE") // FREE | PRO | BUSINESS
+  subscriptionStatus           String?   @default("active") // active | trialing | past_due | canceled | incomplete | incomplete_expired
+  stripeCustomerId             String?   @unique
+  stripeSubscriptionId         String?   @unique
+  subscriptionCurrentPeriodEnd DateTime?
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -36,9 +44,12 @@ model User {
   activityLogs        ActivityLog[]
   assignedMaintenance MaintenanceRequest[]   @relation("AssignedToUser")
   payments            Payment[]
+  invoices            Invoice[]
   uploadedFiles       File[]                 @relation("UploadedByUser")
 
   @@index([role])
+  @@index([subscriptionTier])
+  @@index([subscriptionStatus])
   @@map("users")
 }
 
@@ -165,6 +176,7 @@ model Property {
   bookings             Booking[]
   amenitiesRef         Amenity[]
   payments             Payment[]
+  invoices             Invoice[]
 
   @@index([type])
   @@index([status])
@@ -195,6 +207,7 @@ model Tenant {
   user     User      @relation("UserTenants", fields: [userId], references: [id])
   property Property  @relation(fields: [propertyId], references: [id])
   payments Payment[]
+  invoices Invoice[]
 
   @@index([userId])
   @@index([propertyId])
@@ -304,32 +317,74 @@ model Booking {
 // 10. PAYMENT
 // ---------------------------------------------------------------------------
 model Payment {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  tenantId    String    @db.ObjectId
-  propertyId  String    @db.ObjectId
-  userId      String    @db.ObjectId
-  amount      Float
-  type        String    @default("rent") // rent | deposit | fee | refund
-  status      String    @default("pending") // pending | completed | failed | refunded
-  method      String    @default("bank_transfer") // bank_transfer | credit_card | cash | check
-  dueDate     DateTime?
-  paidAt      DateTime?
-  description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  tenantId            String    @db.ObjectId
+  propertyId          String    @db.ObjectId
+  userId              String    @db.ObjectId
+  amount              Float
+  type                String    @default("rent") // rent | deposit | fee | refund
+  status              String    @default("pending") // pending | completed | failed | refunded
+  method              String    @default("bank_transfer") // bank_transfer | credit_card | cash | check
+  dueDate             DateTime?
+  paidAt              DateTime?
+  description         String?
+  stripeSessionId     String?   // Stripe Checkout session ID
+  stripePaymentIntentId String? // Stripe Payment Intent ID
+  receiptUrl          String?   // Stripe receipt URL
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   // Relations
   tenant   Tenant   @relation(fields: [tenantId], references: [id])
   property Property @relation(fields: [propertyId], references: [id])
   user     User     @relation(fields: [userId], references: [id])
+  invoice  Invoice? @relation("PaymentInvoice")
 
   @@index([tenantId])
   @@index([propertyId])
   @@index([userId])
   @@index([status])
   @@index([dueDate])
+  @@index([stripeSessionId])
+  @@index([stripePaymentIntentId])
   @@index([createdAt])
   @@map("payments")
+}
+
+// ---------------------------------------------------------------------------
+// 10A. INVOICE — Rent Invoicing & Collection
+// ---------------------------------------------------------------------------
+model Invoice {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  tenantId        String    @db.ObjectId
+  propertyId      String    @db.ObjectId
+  userId          String    @db.ObjectId
+  amount          Float
+  dueDate         DateTime
+  status          String    @default("pending") // pending | paid | past_due | cancelled
+  periodStart     DateTime
+  periodEnd       DateTime
+  description     String?
+  paidAt          DateTime?
+  paymentId       String?   @db.ObjectId  @unique
+  stripeSessionId String?
+  receiptUrl      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  property  Property @relation(fields: [propertyId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  payment   Payment? @relation("PaymentInvoice", fields: [paymentId], references: [id])
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([tenantId, status])
+  @@index([propertyId, status])
+  @@map("invoices")
 }
 
 // ---------------------------------------------------------------------------

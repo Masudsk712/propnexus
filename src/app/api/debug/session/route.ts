@@ -9,8 +9,17 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET() {
+  // Block in production — debug endpoints are development-only
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      { error: "Not available in production" },
+      { status: 404 }
+    );
+  }
+
   // 1. Get server-side session using auth()
   const serverSession = await auth();
 
