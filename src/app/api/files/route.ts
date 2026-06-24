@@ -4,13 +4,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { unauthorizedResponse, successResponse, errorResponse } from "@/lib/auth-helpers";
+import { unauthorizedResponse, forbiddenResponse, successResponse, errorResponse } from "@/lib/auth-helpers";
 import { fileService } from "@/services/file.service";
 import type { UploadFileInput } from "@/services/file.service";
 import {
   validateFile,
   MAX_FILES_PER_UPLOAD,
 } from "@/lib/file-validations";
+import { requireFeature } from "@/lib/feature-gate";
 
 /**
  * POST /api/files
@@ -22,7 +23,10 @@ import {
  *   - folder: string (optional) — "properties" | "tenants" | "maintenance" | "general"
  */
 export async function POST(req: NextRequest) {
-  const session = await auth();
+  const authResult = await requireFeature("Advanced analytics");
+  if (authResult instanceof NextResponse) return authResult;
+
+  const session = authResult.session;
   if (!session?.user) return unauthorizedResponse();
 
   try {
@@ -110,7 +114,10 @@ export async function POST(req: NextRequest) {
  * List files filtered by entity, folder, or user.
  */
 export async function GET(req: NextRequest) {
-  const session = await auth();
+  const authResult = await requireFeature("Advanced analytics");
+  if (authResult instanceof NextResponse) return authResult;
+
+  const session = authResult.session;
   if (!session?.user) return unauthorizedResponse();
 
   try {

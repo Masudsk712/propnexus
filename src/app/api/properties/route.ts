@@ -27,12 +27,11 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const role = (session.user as any).role;
+  const role = session.user.role;
   if (role !== "admin" && role !== "manager") return forbiddenResponse();
 
-  // Subscription enforcement: check property limit
-  const propertyCount = await prisma.property.count();
+  // Subscription enforcement: check property limit per-user
+  const propertyCount = await prisma.property.count({ where: { userId: session.user.id } });
   const limitCheck = await checkResourceLimit(
     session.user.id,
     "properties",

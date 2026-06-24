@@ -3,13 +3,17 @@
 // ============================================================================
 
 import { auth } from "@/lib/auth";
-import { unauthorizedResponse, successResponse, errorResponse } from "@/lib/auth-helpers";
+import { unauthorizedResponse, successResponse, errorResponse, forbiddenResponse } from "@/lib/auth-helpers";
 import { dashboardService } from "@/services";
 import { activityService } from "@/services";
+import { requireFeature } from "@/lib/feature-gate";
 
 export async function GET() {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
+
+  const featureResult = await requireFeature("Analytics dashboard");
+  if ("error" in featureResult) return featureResult.error! as ReturnType<typeof forbiddenResponse>;
 
   try {
     const [statsResult, activityResult] = await Promise.all([

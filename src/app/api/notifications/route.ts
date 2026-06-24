@@ -4,13 +4,17 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { unauthorizedResponse, successResponse, errorResponse } from "@/lib/auth-helpers";
+import { unauthorizedResponse, successResponse, errorResponse, forbiddenResponse } from "@/lib/auth-helpers";
 import { createNotificationSchema } from "@/validations";
 import { notificationService } from "@/services";
+import { requireFeature } from "@/lib/feature-gate";
 
 export async function GET() {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
+
+  const featureResult = await requireFeature("Advanced analytics");
+  if ("error" in featureResult) return featureResult.error! as ReturnType<typeof forbiddenResponse>;
 
   const result = await notificationService.getByUser(session.user.id as string);
   if (!result.success) return errorResponse(result.error ?? "Failed to fetch notifications", 500);

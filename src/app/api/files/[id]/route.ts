@@ -9,8 +9,10 @@ import {
   successResponse,
   errorResponse,
   notFoundResponse,
+  forbiddenResponse,
 } from "@/lib/auth-helpers";
 import { fileService } from "@/services/file.service";
+import { requireFeature } from "@/lib/feature-gate";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -23,6 +25,9 @@ interface Params {
 export async function GET(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
+
+  const featureResult = await requireFeature("Advanced analytics");
+  if ("error" in featureResult) return featureResult.error as ReturnType<typeof forbiddenResponse>;
 
   try {
     const { id } = await params;
@@ -50,6 +55,9 @@ export async function GET(req: NextRequest, { params }: Params) {
 export async function DELETE(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
+
+  const featureResult = await requireFeature("Advanced analytics");
+  if ("error" in featureResult) return featureResult.error as ReturnType<typeof forbiddenResponse>;
 
   try {
     const { id } = await params;

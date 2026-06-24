@@ -96,6 +96,7 @@ async function main() {
   // ── Properties ─────────────────────────────────────────────────────────
   const p1 = await prisma.property.create({
     data: {
+      userId: admin.id,
       title: "Skyline Towers — Luxury High-Rise Living",
       name: "Skyline Towers",
       address: "100 Wilshire Blvd",
@@ -119,6 +120,7 @@ async function main() {
 
   const p2 = await prisma.property.create({
     data: {
+      userId: admin.id,
       title: "Harbor View Complex — Waterfront Condos",
       name: "Harbor View Complex",
       address: "500 Marina Drive",
@@ -142,6 +144,7 @@ async function main() {
 
   const p3 = await prisma.property.create({
     data: {
+      userId: admin.id,
       title: "Greenwood Gardens — Charming Townhomes",
       name: "Greenwood Gardens",
       address: "1200 Oak Street",
@@ -165,6 +168,7 @@ async function main() {
 
   const p4 = await prisma.property.create({
     data: {
+      userId: admin.id,
       title: "Metro Lofts — Urban Tech District Living",
       name: "Metro Lofts",
       address: "75 Tech Square",
@@ -188,6 +192,7 @@ async function main() {
 
   const p5 = await prisma.property.create({
     data: {
+      userId: admin.id,
       title: "Palm Springs Villas — Desert Luxury Homes",
       name: "Palm Springs Villas",
       address: "2200 Desert Palm Way",
@@ -211,6 +216,7 @@ async function main() {
 
   const p6 = await prisma.property.create({
     data: {
+      userId: admin.id,
       title: "The Commerce Center — Class A Office Space",
       name: "The Commerce Center",
       address: "450 Business Park Ave",

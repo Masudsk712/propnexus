@@ -28,8 +28,8 @@ model User {
   // Subscription fields
   subscriptionTier             String?   @default("FREE") // FREE | PRO | BUSINESS
   subscriptionStatus           String?   @default("active") // active | trialing | past_due | canceled | incomplete | incomplete_expired
-  stripeCustomerId             String?   @unique
-  stripeSubscriptionId         String?   @unique
+  stripeCustomerId             String?
+  stripeSubscriptionId         String?
   subscriptionCurrentPeriodEnd DateTime?
 
   createdAt     DateTime  @default(now())
@@ -46,6 +46,7 @@ model User {
   payments            Payment[]
   invoices            Invoice[]
   uploadedFiles       File[]                 @relation("UploadedByUser")
+  properties          Property[]             @relation("UserProperties")
 
   @@index([role])
   @@index([subscriptionTier])
@@ -145,6 +146,7 @@ model VerificationToken {
 // ---------------------------------------------------------------------------
 model Property {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId
   title           String
   name            String
   description     String?
@@ -178,6 +180,9 @@ model Property {
   payments             Payment[]
   invoices             Invoice[]
 
+  owner User @relation("UserProperties", fields: [userId], references: [id])
+
+  @@index([userId])
   @@index([type])
   @@index([status])
   @@index([city])

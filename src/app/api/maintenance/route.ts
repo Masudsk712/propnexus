@@ -4,15 +4,23 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { unauthorizedResponse, successResponse, errorResponse } from "@/lib/auth-helpers";
+import { unauthorizedResponse, forbiddenResponse, successResponse, errorResponse } from "@/lib/auth-helpers";
 import { createMaintenanceSchema } from "@/validations";
 import { maintenanceService } from "@/services";
 import { emitMaintenanceEvent, broadcastActivity } from "@/lib/socket-server";
 import { SOCKET_EVENTS } from "@/lib/socket-types";
+import { requireFeature } from "@/lib/feature-gate";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
+
+  // Maintenance requests may contain sensitive property info — restrict to admin/manager
+  const role = session.user.role;
+  if (role !== "admin" && role !== "manager") return forbiddenResponse();
+
+  const featureResult = await requireFeature("Maintenance management");
+  if ("error" in featureResult) return featureResult.error as ReturnType<typeof forbiddenResponse>;
 
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get("page") ?? "1", 10);
@@ -26,6 +34,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
+
+  const role = session.user.role;
+  if (role !== "admin" && role !== "manager") return forbiddenResponse();
+
+  const featureResult = await requireFeature("Maintenance management");
+  if ("error" in featureResult) return featureResult.error as ReturnType<typeof forbiddenResponse>;
 
   try {
     const body = await req.json();
