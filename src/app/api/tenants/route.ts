@@ -14,6 +14,10 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
 
+  // Restrict list to admin/manager only — tenant data is sensitive
+  const role = session.user.role;
+  if (role !== "admin" && role !== "manager") return forbiddenResponse();
+
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get("page") ?? "1", 10);
   const limit = parseInt(searchParams.get("limit") ?? "20", 10);
@@ -26,12 +30,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const role = (session.user as any).role;
+  const role = session.user.role;
   if (role !== "admin" && role !== "manager") return forbiddenResponse();
 
-  // Subscription enforcement: check tenant limit
-  const tenantCount = await prisma.tenant.count();
+  // Subscription enforcement: check tenant limit (per-user)
+  const tenantCount = await prisma.tenant.count({ where: { userId: session.user.id } });
   const limitCheck = await checkResourceLimit(
     session.user.id,
     "tenants",

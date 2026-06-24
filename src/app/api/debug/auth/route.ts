@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { verifyInternalApiKey, debugForbiddenResponse, debugNotFoundResponse } from "@/lib/internal-auth";
 
 /**
  * Lightweight database URL validity check (no Prisma instantiation needed).
@@ -21,7 +22,13 @@ function databaseUrlLooksValid(url: string | undefined): boolean {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Defense-in-depth: require INTERNAL_API_KEY header for all debug routes
+  if (!verifyInternalApiKey(request)) {
+    // Use 404 to hide route existence from unauthorized clients
+    return debugNotFoundResponse();
+  }
+
   // Block in production — debug endpoints are development-only
   if (process.env.NODE_ENV === "production") {
     return NextResponse.json(

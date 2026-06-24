@@ -47,6 +47,9 @@ model User {
   invoices            Invoice[]
   uploadedFiles       File[]                 @relation("UploadedByUser")
   properties          Property[]             @relation("UserProperties")
+  razorpayOrders      RazorpayOrder[]
+  webhookEvents       WebhookEvent[]
+  lateFeeConfigs      LateFeeConfig[]
 
   @@index([role])
   @@index([subscriptionTier])
@@ -179,6 +182,7 @@ model Property {
   amenitiesRef         Amenity[]
   payments             Payment[]
   invoices             Invoice[]
+  lateFeeConfigs        LateFeeConfig[]
 
   owner User @relation("UserProperties", fields: [userId], references: [id])
 
@@ -209,10 +213,11 @@ model Tenant {
   updatedAt       DateTime @updatedAt
 
   // Relations
-  user     User      @relation("UserTenants", fields: [userId], references: [id])
-  property Property  @relation(fields: [propertyId], references: [id])
-  payments Payment[]
-  invoices Invoice[]
+  user          User          @relation("UserTenants", fields: [userId], references: [id])
+  property      Property      @relation(fields: [propertyId], references: [id])
+  payments      Payment[]
+  invoices      Invoice[]
+  razorpayOrders RazorpayOrder[]
 
   @@index([userId])
   @@index([propertyId])
@@ -328,22 +333,32 @@ model Payment {
   userId              String    @db.ObjectId
   amount              Float
   type                String    @default("rent") // rent | deposit | fee | refund
-  status              String    @default("pending") // pending | completed | failed | refunded
-  method              String    @default("bank_transfer") // bank_transfer | credit_card | cash | check
+  status              String    @default("pending") // pending | processing | completed | failed | refunded
+  method              String    @default("bank_transfer") // bank_transfer | credit_card | cash | check | razorpay
+  currency            String    @default("USD")
   dueDate             DateTime?
   paidAt              DateTime?
   description         String?
-  stripeSessionId     String?   // Stripe Checkout session ID
-  stripePaymentIntentId String? // Stripe Payment Intent ID
-  receiptUrl          String?   // Stripe receipt URL
+  stripeSessionId     String?
+  stripePaymentIntentId String?
+  receiptUrl          String?
+  razorpayOrderId     String?
+  razorpayPaymentId   String?
+  razorpaySignature   String?
+  transactionId       String?
+  failureReason       String?
+  refundId            String?
+  refundedAt          DateTime?
+  metadata            String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
   // Relations
-  tenant   Tenant   @relation(fields: [tenantId], references: [id])
-  property Property @relation(fields: [propertyId], references: [id])
-  user     User     @relation(fields: [userId], references: [id])
-  invoice  Invoice? @relation("PaymentInvoice")
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  property Property      @relation(fields: [propertyId], references: [id])
+  user     User          @relation(fields: [userId], references: [id])
+  invoice  Invoice?      @relation("PaymentInvoice")
+  razorpayOrder RazorpayOrder?
 
   @@index([tenantId])
   @@index([propertyId])
@@ -352,6 +367,7 @@ model Payment {
   @@index([dueDate])
   @@index([stripeSessionId])
   @@index([stripePaymentIntentId])
+  @@index([razorpayOrderId])
   @@index([createdAt])
   @@map("payments")
 }
@@ -365,23 +381,37 @@ model Invoice {
   propertyId      String    @db.ObjectId
   userId          String    @db.ObjectId
   amount          Float
+  amountPaid      Float     @default(0)
+  lateFee         Float     @default(0)
+  lateFeeStatus   String    @default("pending") // pending | applied | waived
+  invoiceNumber   String    @unique
   dueDate         DateTime
-  status          String    @default("pending") // pending | paid | past_due | cancelled
+  status          String    @default("pending") // pending | processing | paid | past_due | failed | cancelled | refunded
   periodStart     DateTime
   periodEnd       DateTime
   description     String?
   paidAt          DateTime?
-  paymentId       String?   @db.ObjectId  @unique
+  paymentId       String?   @db.ObjectId @unique
   stripeSessionId String?
   receiptUrl      String?
+  paymentGateway  String    @default("stripe") // stripe | razorpay
+  reminderSentAt  DateTime?
+  reminderCount   Int       @default(0)
+  isRecurring     Boolean   @default(true)
+  parentInvoiceId String?   @db.ObjectId
+  razorpayOrderId String?
+  retryCount      Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   // Relations
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  property  Property @relation(fields: [propertyId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
-  payment   Payment? @relation("PaymentInvoice", fields: [paymentId], references: [id])
+  tenant    Tenant        @relation(fields: [tenantId], references: [id])
+  property  Property      @relation(fields: [propertyId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+  payment   Payment?      @relation("PaymentInvoice", fields: [paymentId], references: [id])
+  razorpayOrder RazorpayOrder?
+  parentInvoice Invoice?  @relation("InvoiceRetry", fields: [parentInvoiceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  retries   Invoice[]     @relation("InvoiceRetry")
 
   @@index([tenantId])
   @@index([userId])
@@ -389,19 +419,100 @@ model Invoice {
   @@index([dueDate])
   @@index([tenantId, status])
   @@index([propertyId, status])
+  @@index([dueDate, status])
+  @@index([createdAt])
   @@map("invoices")
+}
+
+// ---------------------------------------------------------------------------
+// 10B. RAZORPAY ORDER — Track Razorpay orders for reconciliation
+// ---------------------------------------------------------------------------
+model RazorpayOrder {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  orderId         String    @unique
+  amount          Float
+  currency        String    @default("INR")
+  receipt         String
+  status          String    @default("created") // created | attempted | paid
+  invoiceId       String?   @db.ObjectId @unique
+  paymentId       String?   @db.ObjectId @unique
+  tenantId        String   @db.ObjectId
+  userId          String   @db.ObjectId
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id])
+  payment     Payment? @relation(fields: [paymentId], references: [id])
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("razorpay_orders")
+}
+
+// ---------------------------------------------------------------------------
+// 10C. WEBHOOK EVENT — Idempotent webhook processing
+// ---------------------------------------------------------------------------
+model WebhookEvent {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  eventId         String    @unique
+  source          String    // stripe | razorpay
+  type            String
+  payload         String
+  status          String    @default("pending") // pending | processed | failed
+  processedAt     DateTime?
+  error           String?
+  userId          String?  @db.ObjectId
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([source, status])
+  @@index([createdAt])
+  @@map("webhook_events")
+}
+
+// ---------------------------------------------------------------------------
+// 10D. LATE FEE CONFIG — Configurable late fee rules
+// ---------------------------------------------------------------------------
+model LateFeeConfig {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  propertyId      String?   @db.ObjectId // null = global default
+  userId          String   @db.ObjectId // owner/manager who configured
+  type            String    @default("fixed") // fixed | percentage
+  amount          Float
+  gracePeriodDays Int       @default(3)
+  maxFee          Float?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  property Property? @relation(fields: [propertyId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+
+  @@index([propertyId])
+  @@index([userId])
+  @@index([isActive])
+  @@map("late_fee_configs")
 }
 
 // ---------------------------------------------------------------------------
 // 11. NOTIFICATION
 // ---------------------------------------------------------------------------
 model Notification {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String    @db.ObjectId
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
   title     String
   message   String
-  type      String    @default("info") // info | warning | success | error
-  read      Boolean   @default(false)
+  type      String   @default("info") // info | warning | success | error
+  read      Boolean  @default(false)
   link      String?
   createdAt DateTime  @default(now())
 

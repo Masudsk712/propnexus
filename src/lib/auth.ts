@@ -183,12 +183,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id as string;
         token.sub = user.id as string;
-        token.role = (user as any).role ?? "tenant";
+        token.role = user.role ?? "tenant";
         // Set Sentry user context on login
         setSentryUser({
           id: user.id as string,
           email: user.email ?? undefined,
-          role: (user as any).role ?? "tenant",
+          role: user.role ?? "tenant",
         });
         authLog("info", `JWT created for user id="${user.id}" role="${token.role}"`);
       }

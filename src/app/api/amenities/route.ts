@@ -12,6 +12,9 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
 
+  // All authenticated users can list amenities
+  // Further restrictions can be added based on business rules.
+
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get("page") ?? "1", 10);
   const limit = parseInt(searchParams.get("limit") ?? "20", 10);
@@ -24,8 +27,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const role = (session.user as any).role;
+  const role = session.user.role;
   if (role !== "admin" && role !== "manager") return forbiddenResponse();
 
   try {

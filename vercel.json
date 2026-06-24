@@ -11,5 +11,14 @@
     "enabled": true,
     "autoAlias": true,
     "silent": true
-  }
+  },
+  "headers": [
+    {
+      "source": "/api/debug/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+      ]
+    }
+  ]
 }

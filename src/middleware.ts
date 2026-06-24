@@ -39,6 +39,9 @@ const PUBLIC_PREFIXES = [
   "/favicon-16x16.png",
 ];
 
+// Paths that require internal API key (debug endpoints)
+const INTERNAL_API_KEY_PATHS = ["/api/debug"];
+
 // Role-based dashboard redirects
 const ROLE_DASHBOARD_MAP: Record<string, string> = {
   admin: "/dashboard/admin",
@@ -203,6 +206,6 @@ export default async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|images|manifest.json).*)",
+    "/((?!_next/static|_next/image|favicon.ico|images|manifest.json).*)",
   ],
 };

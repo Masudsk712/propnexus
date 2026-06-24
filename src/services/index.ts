@@ -13,6 +13,8 @@ import {
   notificationRepo,
   activityLogRepo,
   dashboardRepo,
+  razorpayOrderRepo,
+  webhookEventRepo,
 } from "@/repositories";
 import { ApiResponse } from "@/types";
 import type {
@@ -26,6 +28,8 @@ import type {
   CreateInvoiceInput,
   CreateNotificationInput,
   CreateActivityLogInput,
+  CreateRazorpayOrderInput,
+  VerifyRazorpayPaymentInput,
 } from "@/validations";
 
 // ── Pagination type ────────────────────────────────────────────────────────
@@ -275,9 +279,138 @@ export const rentalPaymentService = {
       });
 
       // Update invoice with session ID
-      await invoiceRepo.update(input.invoiceId, { stripeSessionId: session.id });
+      await invoiceRepo.update(input.invoiceId, { stripeSessionId: session.id, paymentGateway: "stripe" });
 
       return { url: session.url, sessionId: session.id };
+    });
+  },
+
+  /** Create Razorpay order for rent payment */
+  async createRazorpayOrder(input: {
+    invoiceId: string;
+    tenantId: string;
+    userId: string;
+    amount: number;
+    propertyName: string;
+    description?: string;
+  }): Promise<ApiResponse<unknown>> {
+    return wrap(async () => {
+      const invoice = await invoiceRepo.findById(input.invoiceId);
+      if (!invoice) throw new Error("Invoice not found");
+
+      const razorpay = (await import("razorpay")).default as any;
+      const razorpayInstance = new razorpay({
+        key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "",
+        key_secret: process.env.RAZORPAY_KEY_SECRET || "",
+      });
+
+      const options = {
+        amount: Math.round(input.amount * 100), // Razorpay uses paise (cents)
+        currency: "INR",
+        receipt: `INV-${(invoice as any).invoiceNumber}`,
+        notes: {
+          invoiceId: input.invoiceId,
+          tenantId: input.tenantId,
+          userId: input.userId,
+          type: "rent",
+        },
+      };
+
+      const order = await razorpayInstance.orders.create(options);
+
+      // Store Razorpay order in database
+      await razorpayOrderRepo.create({
+        orderId: order.id,
+        amount: input.amount,
+        currency: "INR",
+        receipt: options.receipt,
+        status: "created",
+        invoiceId: input.invoiceId,
+        tenantId: input.tenantId,
+        userId: input.userId,
+        notes: JSON.stringify(options.notes),
+      });
+
+      // Update invoice with Razorpay order ID
+      await invoiceRepo.update(input.invoiceId, {
+        razorpayOrderId: order.id,
+        paymentGateway: "razorpay",
+      } as any);
+
+      return {
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        razorpayKeyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      } as any;
+    });
+  },
+
+  /** Verify Razorpay payment signature */
+  async verifyRazorpayPayment(input: {
+    razorpayOrderId: string;
+    razorpayPaymentId: string;
+    razorpaySignature: string;
+    invoiceId: string;
+  }): Promise<ApiResponse<unknown>> {
+    return wrap(async () => {
+      const crypto = await import("crypto");
+      const razorpaySecret = process.env.RAZORPAY_KEY_SECRET || "";
+
+      // Verify signature
+      const body = `${input.razorpayOrderId}|${input.razorpayPaymentId}`;
+      const expectedSignature = crypto
+        .createHmac("sha256", razorpaySecret)
+        .update(body)
+        .digest("hex");
+
+      if (expectedSignature !== input.razorpaySignature) {
+        throw new Error("Invalid payment signature");
+      }
+
+      const invoice = await invoiceRepo.findById(input.invoiceId);
+      if (!invoice) throw new Error("Invoice not found");
+      if (invoice.status === "paid") return invoice;
+
+      const now = new Date();
+
+      // Create payment record
+      const payment = await paymentRepo.create({
+        tenantId: invoice.tenantId,
+        propertyId: invoice.propertyId,
+        userId: invoice.userId,
+        amount: invoice.amount,
+        type: "rent",
+        status: "completed",
+        method: "razorpay",
+        currency: "INR",
+        paidAt: now,
+        razorpayOrderId: input.razorpayOrderId,
+        razorpayPaymentId: input.razorpayPaymentId,
+        receiptUrl: `https://dashboard.razorpay.com/app/payments/${input.razorpayPaymentId}`,
+        description: invoice.description ?? `Rent payment via Razorpay`,
+      } as any);
+
+      // Update Razorpay order
+      await razorpayOrderRepo.update(input.razorpayOrderId, {
+        status: "paid",
+        paymentId: payment.id,
+      });
+
+      // Update payment with signature
+      await paymentRepo.update(payment.id, {
+        razorpaySignature: input.razorpaySignature,
+      } as any);
+
+      // Mark invoice as paid
+      await invoiceRepo.markPaid(
+        input.invoiceId,
+        payment.id,
+        now,
+        `https://dashboard.razorpay.com/app/payments/${input.razorpayPaymentId}`
+      );
+
+      return payment;
     });
   },
   /** Handle Stripe webhook for rent payment completion */

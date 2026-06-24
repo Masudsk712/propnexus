@@ -151,13 +151,46 @@ export const createPaymentSchema = z.object({
   amount: z.number().min(0),
   type: z.enum(["rent", "deposit", "fee", "refund"]).default("rent"),
   status: z.enum(["pending", "completed", "failed", "refunded"]).default("pending"),
-  method: z.enum(["bank_transfer", "credit_card", "cash", "check"]).default("bank_transfer"),
+  method: z.enum(["bank_transfer", "credit_card", "cash", "check", "razorpay"]).default("bank_transfer"),
   dueDate: dateLike.optional(),
   paidAt: dateLike.optional(),
   description: optionalString,
 });
 
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+
+// ── Late Fee Config ──────────────────────────────────────────────────────────
+export const createLateFeeConfigSchema = z.object({
+  propertyId: z.string().optional(),
+  type: z.enum(["fixed", "percentage"]).default("fixed"),
+  amount: z.number().min(0, "Amount must be positive"),
+  gracePeriodDays: z.number().int().min(0).default(3),
+  maxFee: z.number().min(0).optional(),
+  isActive: z.boolean().default(true),
+});
+
+export type CreateLateFeeConfigInput = z.infer<typeof createLateFeeConfigSchema>;
+
+// ── Razorpay ─────────────────────────────────────────────────────────────────
+export const createRazorpayOrderSchema = z.object({
+  invoiceId: z.string().min(1),
+  tenantId: z.string().min(1),
+  amount: z.number().min(1, "Amount must be at least 1"),
+  currency: z.string().default("INR"),
+  receipt: z.string().min(1),
+  notes: z.string().optional(),
+});
+
+export type CreateRazorpayOrderInput = z.infer<typeof createRazorpayOrderSchema>;
+
+export const verifyRazorpayPaymentSchema = z.object({
+  razorpayOrderId: z.string().min(1),
+  razorpayPaymentId: z.string().min(1),
+  razorpaySignature: z.string().min(1),
+  invoiceId: z.string().min(1),
+});
+
+export type VerifyRazorpayPaymentInput = z.infer<typeof verifyRazorpayPaymentSchema>;
 
 // ── Invoices ──────────────────────────────────────────────────────────────
 export const createInvoiceSchema = z.object({
@@ -172,7 +205,26 @@ export const createInvoiceSchema = z.object({
   status: z.enum(["pending", "paid", "past_due", "cancelled"]).default("pending"),
 });
 
+export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
+  status: z.enum(["pending", "processing", "paid", "past_due", "failed", "cancelled", "refunded"]).optional(),
+  amountPaid: z.number().min(0).optional(),
+  lateFee: z.number().min(0).optional(),
+  lateFeeStatus: z.enum(["pending", "applied", "waived"]).optional(),
+  retryCount: z.number().int().min(0).optional(),
+  stripeSessionId: z.string().optional(),
+  receiptUrl: z.string().optional(),
+  paidAt: z.union([z.string(), z.date()]).transform((v) => new Date(v)).optional(),
+  paymentId: z.string().optional(),
+  paymentGateway: z.enum(["stripe", "razorpay"]).optional(),
+  razorpayOrderId: z.string().optional(),
+  reminderSentAt: z.union([z.string(), z.date()]).transform((v) => new Date(v)).optional(),
+  reminderCount: z.number().int().min(0).optional(),
+  isRecurring: z.boolean().optional(),
+  parentInvoiceId: z.string().optional(),
+});
+
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
+export type UpdateInvoiceInput = z.infer<typeof updateInvoiceSchema>;
 
 // ── Notifications ─────────────────────────────────────────────────────────
 export const createNotificationSchema = z.object({

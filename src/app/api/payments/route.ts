@@ -24,8 +24,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return unauthorizedResponse();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const role = (session.user as any).role;
+  const role = session.user.role;
   if (role !== "admin" && role !== "manager") return forbiddenResponse();
 
   try {

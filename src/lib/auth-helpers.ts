@@ -22,8 +22,7 @@ export async function getSessionOrThrow() {
  */
 export async function getUserRole(): Promise<UserRole | null> {
   const session = await auth();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return ((session?.user as any)?.role as UserRole) ?? null;
+  return (session?.user?.role as UserRole | undefined) ?? null;
 }
 
 /**

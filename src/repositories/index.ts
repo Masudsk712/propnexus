@@ -15,6 +15,10 @@ import type {
   CreateInvoiceInput,
   CreateNotificationInput,
   CreateActivityLogInput,
+  CreateLateFeeConfigInput,
+  CreateRazorpayOrderInput,
+  VerifyRazorpayPaymentInput,
+  UpdateInvoiceInput,
 } from "@/validations";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -443,7 +447,9 @@ export const invoiceRepo = {
       id: true, amount: true, dueDate: true, status: true,
       periodStart: true, periodEnd: true, description: true,
       paidAt: true, stripeSessionId: true, receiptUrl: true,
-      createdAt: true, updatedAt: true,
+      createdAt: true, updatedAt: true, amountPaid: true, lateFee: true,
+      lateFeeStatus: true, invoiceNumber: true, paymentGateway: true,
+      reminderCount: true, isRecurring: true, retryCount: true,
       tenant: { select: { id: true, unit: true } },
       property: { select: { id: true, name: true } },
       user: { select: { id: true, name: true } },
@@ -467,6 +473,7 @@ export const invoiceRepo = {
         property: { select: { id: true, name: true } },
         user: { select: { id: true, name: true, email: true } },
         payment: true,
+        razorpayOrder: true,
       },
     });
   },
@@ -523,7 +530,7 @@ export const invoiceRepo = {
     return prisma.invoice.create({ data: input as any });
   },
 
-  update(id: string, data: Partial<CreateInvoiceInput & { status: string; paidAt?: Date; paymentId?: string; stripeSessionId?: string; receiptUrl?: string }>) {
+  update(id: string, data: UpdateInvoiceInput) {
     return prisma.invoice.update({ where: { id }, data: data as any });
   },
 
@@ -594,6 +601,79 @@ export const invoiceRepo = {
       _sum: { amount: true },
     });
     return result._sum.amount ?? 0;
+  },
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Razorpay Orders
+// ────────────────────────────────────────────────────────────────────────────
+export const razorpayOrderRepo = {
+  async create(input: CreateRazorpayOrderInput) {
+    return prisma.razorpayOrder.create({ data: input as any });
+  },
+
+  async findByOrderId(orderId: string) {
+    return prisma.razorpayOrder.findUnique({ where: { orderId } });
+  },
+
+  async update(orderId: string, data: Partial<CreateRazorpayOrderInput & { status: string; paymentId?: string }>) {
+    return prisma.razorpayOrder.update({ where: { orderId }, data: data as any });
+  },
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Webhook Events
+// ────────────────────────────────────────────────────────────────────────────
+export const webhookEventRepo = {
+  async create(input: { eventId: string; source: string; type: string; payload: string; userId?: string }) {
+    return prisma.webhookEvent.create({ data: input });
+  },
+
+  async findByEventId(eventId: string) {
+    return prisma.webhookEvent.findUnique({ where: { eventId } });
+  },
+
+  async markProcessed(eventId: string) {
+    return prisma.webhookEvent.update({
+      where: { eventId },
+      data: { status: "processed", processedAt: new Date() },
+    });
+  },
+
+  async markFailed(eventId: string, error: string) {
+    return prisma.webhookEvent.update({
+      where: { eventId },
+      data: { status: "failed", error },
+    });
+  },
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Late Fee Config
+// ────────────────────────────────────────────────────────────────────────────
+export const lateFeeConfigRepo = {
+  async create(input: CreateLateFeeConfigInput & { userId: string }) {
+    return prisma.lateFeeConfig.create({ data: input as any });
+  },
+
+  async findByUser(userId: string) {
+    return prisma.lateFeeConfig.findMany({
+      where: { userId },
+      include: { property: { select: { id: true, name: true } } },
+    });
+  },
+
+  async findActive(propertyId?: string) {
+    return prisma.lateFeeConfig.findFirst({
+      where: {
+        isActive: true,
+        OR: [
+          { propertyId: propertyId ?? undefined },
+          { propertyId: null },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+    });
   },
 };
 
