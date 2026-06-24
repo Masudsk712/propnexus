@@ -8,14 +8,16 @@ import Stripe from "stripe";
  * Stripe server-side instance.
  * Use this in API routes and server components.
  */
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
-  apiVersion: "2025-03-31.basil" as any,
-  typescript: true,
-  appInfo: {
-    name: "Unified Property Management",
-    version: "1.0.0",
-  },
-});
+export const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2026-05-27.dahlia",
+      typescript: true,
+      appInfo: {
+        name: "Unified Property Management",
+        version: "1.0.0",
+      },
+    })
+  : ({} as InstanceType<typeof Stripe>);
 
 /**
  * Check if Stripe is properly configured.
